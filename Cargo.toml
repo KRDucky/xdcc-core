@@ -1,0 +1,34 @@
+[workspace]
+members = ["crates/xdcc-sim"]
+exclude = ["fuzz"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0-dev"
+edition = "2024"
+rust-version = "1.88"
+license = "GPL-3.0-only"
+repository = "https://github.com/KRDucky/xdcc-core"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[package]
+name = "xdcc-core"
+description = "Protocol handling and reliable downloads for XDCC (bootstrap only)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+# Publishing is a separate release decision; M0 reserves no registry name.
+publish = false
+
+[lints]
+workspace = true
