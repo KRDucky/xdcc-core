@@ -74,6 +74,7 @@ jobs:
       - name: Run each target for 60 seconds
         working-directory: fuzz
         run: |
+          mkdir -p /tmp/irc_line /tmp/ctcp /tmp/dcc_message
           cargo +nightly fuzz run irc_line /tmp/irc_line seeds/irc_line -- -max_total_time=60 -max_len=20000
           cargo +nightly fuzz run ctcp /tmp/ctcp seeds/ctcp -- -max_total_time=60 -max_len=70000
           cargo +nightly fuzz run dcc_message /tmp/dcc_message seeds/dcc_message -- -max_total_time=60 -max_len=2048

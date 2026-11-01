@@ -34,6 +34,7 @@ lockfile and `deny.toml`. Install `cargo-fuzz` using the version in
 `.github/workflows/ci.yml`, then run from `fuzz/`:
 
 ```sh
+mkdir -p /tmp/irc_line-corpus /tmp/ctcp-corpus /tmp/dcc_message-corpus
 cargo +nightly fuzz run irc_line /tmp/irc_line-corpus seeds/irc_line -- -max_len=20000
 cargo +nightly fuzz run ctcp /tmp/ctcp-corpus seeds/ctcp -- -max_len=70000
 cargo +nightly fuzz run dcc_message /tmp/dcc_message-corpus seeds/dcc_message -- -max_len=2048
