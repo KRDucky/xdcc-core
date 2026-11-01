@@ -1,7 +1,8 @@
 # XDCC Core Development Plan
 
 **Status:** Phase 0 design revised after independent review. The owner authorized
-M0 on 2026-10-31. Authorization does not extend to M1 or later milestones or E1.
+M0 on 2026-10-31, and it is merged. The owner then authorized M1. Authorization
+does not extend to M2 or later milestones or E1.
 
 ## 1. Stages
 
@@ -53,6 +54,11 @@ See `M0_REPORT.md` for evidence.
 | **Done** | Merged. No production logic. |
 
 ### M1: Protocol codecs
+
+**Progress, 2026-10-31:** implemented on `codex/m1-protocol-codecs`, uncommitted for
+independent review. Local checks and fuzz counts are in `M1_REPORT.md`. Hosted CI on
+Linux, macOS, and Windows has not run on this work, so M1's definition of done is
+still open.
 
 | | |
 |---|---|

@@ -1,0 +1,1 @@
+:bot!u@h PRIVMSG me :DCC SEND f.bin 192.168.1.1 5000 1024

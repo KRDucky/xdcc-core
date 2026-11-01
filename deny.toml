@@ -7,8 +7,10 @@ unsound = "all"
 
 [licenses]
 confidence-threshold = 0.93
-# No third-party dependencies at M0. Review additional licences when adding them.
-allow = ["GPL-3.0-only"]
+# Dev-dependencies are skipped unless this is set. They are not shipped, but they
+# still run on developer and CI machines, so they get the same review.
+include-dev = true
+allow = ["Apache-2.0", "GPL-3.0-only", "MIT"]
 
 [bans]
 multiple-versions = "warn"

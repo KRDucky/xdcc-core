@@ -1,8 +1,8 @@
 # Contributing to XDCC Core
 
-M0 establishes empty crates and development checks. M1 and later milestones need
-separate owner authorization; see [the development plan](docs/DEVELOPMENT_PLAN.md).
-No protocol or transfer behavior exists yet.
+The library holds pure protocol codecs from M1. Each later milestone needs separate
+owner authorization; see [the development plan](docs/DEVELOPMENT_PLAN.md). No network,
+storage, or transfer behavior exists yet.
 
 ## Setup
 
@@ -23,8 +23,24 @@ cargo deny --workspace --locked check
 
 Install `cargo-deny` separately using the version in `.github/workflows/ci.yml`.
 This developer tool may require a newer Rust compiler than the library's MSRV.
-The workspace currently has no third-party dependencies. Commit `Cargo.lock` so
-CI resolves exactly the reviewed dependency graph when dependencies are added.
+The library has no production dependencies, and dev-dependencies get the same
+licence review (`include-dev` in `deny.toml`). Commit `Cargo.lock` so CI resolves
+exactly the reviewed dependency graph when dependencies are added.
+
+## Fuzzing
+
+`fuzz/` is excluded from the workspace, needs a nightly toolchain, and has its own
+lockfile and `deny.toml`. Install `cargo-fuzz` using the version in
+`.github/workflows/ci.yml`, then run from `fuzz/`:
+
+```sh
+cargo +nightly fuzz run irc_line /tmp/irc_line-corpus seeds/irc_line -- -max_len=20000
+cargo +nightly fuzz run ctcp /tmp/ctcp-corpus seeds/ctcp -- -max_len=70000
+cargo +nightly fuzz run dcc_message /tmp/dcc_message-corpus seeds/dcc_message -- -max_len=2048
+```
+
+Each target fails on over 16 KiB of library allocation for one input, and on a
+broken round trip. A crash becomes a seed in `fuzz/seeds/` and a named test.
 
 ## Change scope
 
@@ -40,13 +56,12 @@ CI resolves exactly the reviewed dependency graph when dependencies are added.
 - Make no bot compatibility or filesystem durability claims without recorded
   test evidence.
 
-The simulator is a separate unpublished crate. Future `cargo-fuzz` targets belong
-in `fuzz/`, excluded from the normal workspace; M0 does not create fuzz targets.
+The simulator is a separate unpublished crate.
 
 ## Review and licensing
 
 Changes are reviewed before merging. This repository uses GPL-3.0-only; see
-[LICENSE](LICENSE). No crate is publishable at M0. Publishing requires a separate
+[LICENSE](LICENSE). No crate is publishable yet. Publishing requires a separate
 release decision and a fresh registry-name check.
 
 Report suspected vulnerabilities using [SECURITY.md](SECURITY.md).

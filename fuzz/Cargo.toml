@@ -1,0 +1,47 @@
+[package]
+name = "xdcc-core-fuzz"
+description = "cargo-fuzz targets for the xdcc-core protocol codecs"
+version = "0.0.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4.13"
+stats_alloc = "0.1.10"
+xdcc-core = { path = ".." }
+
+# Excluded from the repository workspace, so it stays out of normal builds.
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[[bin]]
+name = "irc_line"
+path = "fuzz_targets/irc_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ctcp"
+path = "fuzz_targets/ctcp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dcc_message"
+path = "fuzz_targets/dcc_message.rs"
+test = false
+doc = false
+bench = false

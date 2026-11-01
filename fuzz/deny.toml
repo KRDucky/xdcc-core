@@ -1,0 +1,25 @@
+[graph]
+all-features = true
+
+[advisories]
+unmaintained = "all"
+unsound = "all"
+
+[licenses]
+confidence-threshold = 0.93
+# Dev-dependencies are skipped unless this is set. They are not shipped, but they
+# still run on developer and CI machines, so they get the same review.
+include-dev = true
+# NCSA covers libFuzzer. It is needed only by this unpublished package.
+allow = ["Apache-2.0", "GPL-3.0-only", "MIT", "NCSA"]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# The library itself is a path dependency of this unpublished package.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

@@ -151,6 +151,7 @@ Versions and data were read from crates.io on 2026-10-31.
 | Crate | Version | Why |
 |---|---|---|
 | `proptest` | 1.12 | Property tests |
+| `stats_alloc` | 0.1 | Counts allocations safely, since tests forbid `unsafe`. M1 uses it for the 16 KiB check. |
 | `libfuzzer-sys` | 0.4 | Fuzzing |
 | `tempfile` | 3.27 | Isolated directories |
 
@@ -1157,23 +1158,35 @@ impl PackRequest {
 pub enum PackRef { Number(NonZeroU32), Crc32(u32) }
 
 impl BotNick {
-    pub fn parse(nick: &str) -> Result<Self, NameError>;   // rejects spaces, CR, LF, NUL, 0x01
+    pub fn parse(nick: &[u8]) -> Result<Self, OutboundError>;   // one target: no space, ASCII control, list, mask, or channel
 }
 ```
 
 ### 8.3 Parsing offers
 
-Usable with `default-features = false`.
+Implemented in M1, in `src/proto/`. Usable with `default-features = false`. Three changes from the original sketch were needed:
+
+- `parse_ctcp` takes a `LineContext`, because a body alone cannot show how long its line was, and `SuspectedTruncation` needs that.
+- `parse_dcc` takes the pending attempt's tail kind, because ACCEPT cannot be parsed without it (`PROTOCOL_SPEC.md` §7.5).
+- `WireName::sanitize` waits for M2. M1 has no filesystem policy.
 
 ```rust
-pub fn parse_ctcp(body: &[u8]) -> Result<Ctcp<'_>, CtcpError>;
-pub fn parse_dcc(ctcp: &Ctcp<'_>) -> Result<DccMessage, DccParseError>;
+pub fn parse_ctcp(body: &[u8], line: LineContext) -> Result<Ctcp<'_>, CtcpError>;
+pub fn parse_dcc(ctcp: &Ctcp<'_>, pending: Option<ReplyTailKind>) -> Result<DccMessage, DccParseError>;
+
+impl LineContext {
+    pub const fn new(message_len: usize) -> Self;      // bytes outside the tags, without CRLF
+    pub fn of(message: &IrcMessage<'_>) -> Self;
+}
+
+#[non_exhaustive]
+pub enum ReplyTailKind { Active, Passive }
 
 #[non_exhaustive]
 pub enum DccParseError {
-    TooFewFields, BadFieldCount, EmptyName, UnterminatedQuote, UnexpectedToken,
-    PortZeroWithoutToken, BadPort, BadAddress, ImplausibleAddress,
-    BadSize, BadToken, SuspectedTruncation, /* ... */
+    NotDcc, MissingType, TooFewFields, BadFieldCount, EmptyName, UnterminatedQuote,
+    UnexpectedToken, PortZeroWithoutToken, BadPort, BadAddress, ImplausibleAddress,
+    BadSize, BadPosition, BadToken, SuspectedTruncation, Unsolicited, BadName,
 }
 
 #[non_exhaustive]
@@ -1181,7 +1194,7 @@ pub enum DccMessage {
     Send(DccOffer),
     Accept(DccAccept),
     Resume(DccResume),
-    Other { kind: DccKind },         // TSEND, SSEND, CHAT: parsed, not supported
+    Other { kind: DccKind },         // TSEND, TDCC, SSEND, CHAT, SCHAT, unknown: named, not read
 }
 
 pub struct DccOffer {
@@ -1197,10 +1210,27 @@ pub enum OfferEndpoint {
 }
 
 impl WireName {
-    pub fn as_bytes(&self) -> &[u8];
-    pub fn sanitize(&self, rules: &NameRules) -> Result<SafeName, NameError>;
+    pub fn new(wire: &[u8]) -> Result<Self, NameError>;
+    pub fn as_bytes(&self) -> &[u8];     // exact field, quotes included
+    pub fn is_quoted(&self) -> bool;
+    pub fn name(&self) -> &[u8];         // without quotes
+    // pub fn sanitize(&self, rules: &NameRules) -> Result<SafeName, NameError>;   arrives in M2
 }
 ```
+
+The rest of the M1 surface:
+
+| Item | Purpose |
+|---|---|
+| `LineFramer::{new, push, pending, is_discarding, reset}` | Bounded incremental framing. `push` returns one `Step` with `consumed` and an optional `Frame`. Not `Clone`, which keeps its one buffer fixed. |
+| `IrcMessage::parse` | Allocation-free message parsing, with lazy `tags()` |
+| `inbound_ctcp`, `InboundCtcp::may_carry_dcc_offer` | CTCP with its carrier and target, for `PROTOCOL_SPEC.md` §4 rule 5 |
+| `encode_ctcp`, `DccMessage::encode` | Canonical bodies |
+| `OutboundLine`, `LineBudget`, `privmsg`, `ctcp_privmsg` | Validated lines with an explicit relay budget. A refused value allocates nothing. |
+| `XdccCommand`, `XdccStyle`, `PackRef` | Request builders |
+| `CaseMapping` | `ascii`, `rfc1459`, `rfc1459-strict` |
+
+`InboundLine` from the link contract in §6 has no type yet, since nothing carries one until M6. `IrcMessage::parse` and `LineFramer` enforce its limits.
 
 ### 8.4 Starting, observing, and cancelling
 

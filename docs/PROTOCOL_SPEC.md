@@ -1,6 +1,6 @@
 # XDCC Core Protocol Specification (Draft)
 
-**Status:** Phase 0 draft, revised after independent review, 2026-10-31. No part of this has been tested against a live bot.
+**Status:** Phase 0 draft, revised after independent review, 2026-10-31. M1 implements §3, §4, §5, §7, and the codec part of §9 in `src/proto/`. Those results are codec tests. No part of this has been tested against a live bot.
 
 No normative specification exists for XDCC, for DCC RESUME, or for DCC ACK behaviour above 4 GiB. This document records what is known, how it is known, and what XDCC Core will do. Sections labelled **Rule** define this project's behaviour. They are design decisions, not claims about the wider ecosystem.
 
@@ -74,10 +74,13 @@ No code from these projects is used or copied. Paths are relative to each reposi
 **Rule.**
 
 1. Parsing operates on `&[u8]` and never requires UTF-8. Filenames stay as bytes until sanitised.
-2. Accept lone LF as a terminator on input [S2]. Always send CRLF.
+2. Accept lone LF as a terminator on input [S2]. Remove one CR before it. Always send CRLF. A CR anywhere else is not a terminator, and an inbound line containing CR, LF, or NUL is refused.
 3. Reject outbound lines containing CR, LF, or NUL at construction time.
-4. Compare nicks using the server's advertised `CASEMAPPING`, defaulting to `rfc1459`. [?] The default is a project decision, and the exact values should be confirmed from S2's ISUPPORT section during M1.
-5. Budget outbound length conservatively, because the relayed line gains a `:nick!user@host ` prefix that the sender cannot see exactly. Overlong outbound lines fail with an explicit error rather than being truncated.
+4. Compare nicks using the server's advertised `CASEMAPPING`, assuming `rfc1459` when it is absent, as S2 says clients SHOULD. Supported values are `ascii`, `rfc1459`, and `rfc1459-strict` [S2]. `rfc7613` is a PRECIS comparison and is not supported. An unsupported value is reported to the caller, which should fail closed. All supported mappings act only on ASCII bytes.
+5. Budget outbound length conservatively, because the relayed line gains a `:nick!user@host ` prefix that the sender cannot see exactly. With an unknown source, 109 bytes are reserved, leaving 401: `:`, a 30-byte nick, `!`, a 12-byte user, `@`, a 63-byte host, and a space. Those are common limits, not guarantees [?]. A known source reserves its exact length plus 2. Overlong outbound lines fail with an explicit error rather than being truncated, and the final length is checked before anything is allocated or copied, so a refused body costs nothing whatever its size. Injection checks come first, so a hostile oversized body is reported as `ForbiddenByte`. This crate sends no tags.
+6. The tag and message budgets are independent [S8]. The tag section may use 8191 bytes, including `@` and its trailing space. Everything after it may use 510 bytes, without CRLF. Spare space in one never extends the other. The terminator is not counted, so CRLF and lone LF have the same limit.
+7. Framing is bounded and does not depend on chunk boundaries. A budget is checked as bytes arrive, so memory never exceeds one fixed buffer, even if no LF arrives. A framer is not `Clone`, since a cloned buffer need not keep its capacity and could regrow while framing. On the first byte over budget, the line is reported once as oversized, its held bytes are dropped, and input is discarded through the next LF. No fragment of it is ever parsed, because a cut line can look like a shorter valid one. The next line frames normally. A line with no terminator is never returned.
+8. A 15th parameter absorbs the rest of the line [S1 §2.3.1], so parameter count is bounded with no refusal. Tag values stay escaped, since no codec reads them.
 
 **Truncation hazard.** A long filename can push a relayed `DCC SEND` beyond 512 bytes, so a server may cut off the trailing fields. A truncated offer can parse as a shorter but well-formed one, and a cut size field is still a valid number. See §7.4.
 
@@ -96,7 +99,7 @@ No code from these projects is used or copied. Paths are relative to each reposi
 **Rule.**
 
 1. A message is CTCP only if the body's first byte is `0x01`. An embedded `\x01DCC ` elsewhere in a message is plain text. CVE-2022-2663 shows why loose matching is dangerous [X5].
-2. The body ends at the next `0x01` or end of message. The parser records whether the final delimiter was present, and whether the line reached the truncation threshold (default 480 bytes excluding CRLF). §7.4 uses both.
+2. The body ends at the next `0x01` or end of message. The parser records whether the final delimiter was present, and whether the line reached the truncation threshold (default 480 bytes excluding CRLF). Only bytes outside the tag section count, prefix included, because that is the part a server's 512-byte limit cuts. §7.4 uses both, and a caller cannot parse CTCP without supplying the line length.
 3. Apply neither quoting layer on input or output.
 4. Tag and DCC type matching is ASCII case-insensitive [I1, I3].
 5. A `DCC` offer is accepted only from PRIVMSG addressed to our own nick. A DCC offer in NOTICE or to a channel is logged and ignored. [?] Whether any live bot offers over NOTICE is unknown.
@@ -267,9 +270,11 @@ A value starts as quoted if `args` begins with `"`. The closing quote is the las
 | Unquoted name ending in digits | Parsed as Standard, name keeps the digits | Varies | None |
 | Negative numbers | Refused | Q9 is open | Unknown until a corpus exists |
 
+An unquoted name that ends in a zero-valued word can make a string read as Passive. `a 2024 0 16777216 70000` is Passive, with name `a` and token `70000`, under the table above. It is not a fallback, because no Legacy reading of that string exists: Legacy cannot carry an unquoted multi-word name.
+
 An attacker can always craft a well-formed offer, so correct parsing is not a trust decision. `SECURITY.md` applies after this.
 
-**Vectors.** `research/offer_parser_check.py` holds the executable set, 35 vectors plus generated round trips. Representative cases:
+**Vectors.** `research/offer_parser_check.py` holds the executable set, 35 vectors plus generated round trips. `tests/dcc_vectors.rs` ports all of them with exact outcomes. Representative cases:
 
 | Input after `SEND` | Result |
 |---|---|
@@ -302,6 +307,8 @@ An attacker can always craft a well-formed offer, so correct parsing is not a tr
 
 A refused offer never reaches network or filesystem code.
 
+**Round trips.** `parse(encode(m)) == m` holds for every encodable message. Name and token bytes are preserved exactly. Numbers and addresses are compared as values, so `encode(parse(s)) == s` holds only for canonical text: leading zeros, dotted IPv4, and repeated spaces normalise. A passive offer with no usable address encodes as `0`. A nonzero-port-plus-token reply (§8) has no encoder until M8, because this parser refuses that shape.
+
 ### 7.5 Parsing RESUME and ACCEPT
 
 Only ACCEPT is received by this library. It is matched against the state of the pending attempt, so the parser is told which tail to expect.
@@ -312,6 +319,18 @@ Only ACCEPT is received by this library. It is matched against the state of the 
 | Passive | `0 <position> <token>` |
 
 Quoted names use the same closing-quote rule. Unquoted names take everything left of the expected tail. The name is not compared (§9), so a `file.ext` or rewritten name is harmless. Number and token rules match §7.4, and any failure ignores the message and counts it.
+
+| Rule | Detail |
+|---|---|
+| Count | Quoted: exactly the expected fields, otherwise `BadFieldCount`. Unquoted: more tokens than the tail, otherwise `TooFewFields`. |
+| Order | Left to right. Active: `BadPort`, `BadPosition`. Passive: `BadPort` if the first field is not zero-valued, `BadPosition`, `BadToken`. |
+| Position | 0 to `2^64 - 1`, with the §7.4 number rule |
+| No attempt pending | `Unsolicited`, since the tail cannot be chosen. This is §9 rule 4. |
+| Truncation | With no final `0x01` on a line at the threshold, `SuspectedTruncation`. A short line without it is accepted. |
+
+The truncation rule is here because a cut position is still a number. Without it, a cut ACCEPT would reach §9 rule 3 and abort the attempt as a mismatch, when it should be ignored.
+
+The context decides the tail, with no guessing. Under an active attempt, `f 0 1024 77` parses as name `f 0`, port 1024, position 77, and then fails to match the attempt's port.
 
 ## 8. Passive (reverse) DCC
 

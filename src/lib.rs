@@ -1,9 +1,11 @@
 //! XDCC Core: protocol handling and reliable file downloads.
 //!
-//! This crate is an empty M0 bootstrap. Protocol and transfer APIs are proposed
+//! [`proto`] holds the pure protocol codecs from M1. Transfer APIs are proposed
 //! in `docs/ARCHITECTURE.md`; no download functionality is implemented yet.
 
 #![forbid(unsafe_code)]
+
+pub mod proto;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]

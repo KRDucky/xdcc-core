@@ -1,0 +1,2 @@
+# Fuzz seeds are exact protocol bytes, including CRLF and malformed whitespace.
+fuzz/seeds/** binary
