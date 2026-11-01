@@ -128,3 +128,4 @@ Phase 0 is **not** closed on these. None can be settled by reading alone. The "S
 | Q17 | Low | Does any live bot offer zero-length files, and does any sender wait for an ACK on one? | Corpus | M11 |
 | Q18 | Low | Do any senders send a nonzero port with a token to a receiver? It is refused today. | Corpus | M11 |
 | Q19 | Low | Is the 480-byte truncation threshold right for real relayed lines? | Corpus | E1, M11 |
+| Q20 | Low | Is the 109-byte relay reservation enough on real networks, and does any network in scope advertise `CASEMAPPING=rfc7613`? It is unsupported today. | Interop | M11 |

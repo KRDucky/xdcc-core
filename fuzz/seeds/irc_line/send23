@@ -1,0 +1,1 @@
+:bot!u@h PRIVMSG me :DCC SEND f.bin host.example 5000 1024

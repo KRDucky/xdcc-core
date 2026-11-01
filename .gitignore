@@ -2,5 +2,6 @@
 /fuzz/target/
 /fuzz/artifacts/
 /fuzz/coverage/
+/fuzz/corpus/
 **/__pycache__/
 *.pyc

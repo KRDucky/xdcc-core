@@ -1,7 +1,7 @@
 # Security reporting
 
-XDCC Core is at M0 bootstrap and has no implemented protocol or transfer handling.
-No release is supported for production use yet.
+XDCC Core has pure protocol codecs from M1 and no network, storage, or transfer
+handling. No release is supported for production use yet.
 
 ## Private reports
 

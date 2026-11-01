@@ -2,9 +2,10 @@
 
 A Rust library for XDCC protocol handling and reliable DCC downloads.
 
-**Status:** M0 bootstrap. The workspace contains an empty library and an
-unpublished simulator stub. Downloads and protocol parsing are not implemented,
-and no real-world compatibility is claimed.
+**Status:** M1, protocol codecs, under review. The library parses and encodes IRC,
+CTCP, DCC, and XDCC messages as pure byte codecs. Downloads are not implemented.
+Results come from unit, property, and fuzz tests, so no real-world compatibility
+is claimed.
 
 ## Development
 
@@ -25,7 +26,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete check list.
 - [Development plan](docs/DEVELOPMENT_PLAN.md)
 - [Project status and decisions](docs/PROJECT_MEMORY.md)
 
-Implementation authorization currently covers M0 only. Later milestones and
+Implementation authorization currently covers M0 and M1. Later milestones and
 publication require separate authorization.
 
 Licensed under [GPL-3.0-only](LICENSE). Security reporting: [SECURITY.md](SECURITY.md).

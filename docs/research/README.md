@@ -32,7 +32,7 @@ Results above came from Python 3.14.8 on CachyOS Linux. Other versions were not 
 - The shutdown half of `durability_model.py` is an abstract interleaving model. It runs no filesystem call and no Tokio code. It assumes that a started operation cannot be interrupted by aborting a task, which comes from Tokio's documentation, and it was not measured here.
 - The probe half of `durability_model.py` is also abstract. Its lookups return chosen values, so it says nothing about which errors real filesystems return, or when. It assumes FA-1 and FA-2 from `ARCHITECTURE.md` §7.10, except in two scenarios that break them on purpose, where the revised rule is expected to report a false `Failed`.
 - `accounting_check.py` exercises the equations, not an implementation.
-- `offer_parser_check.py` shows that the rules and vectors agree. It says nothing about what real senders emit.
+- `offer_parser_check.py` shows that the rules and vectors agree. It says nothing about what real senders emit. Its `is_zero` gained the 20-character number limit during M1, so that it matches `PROTOCOL_SPEC.md` §7.4. Its printed results did not change.
 
 ## How the models expose earlier contradictions
 

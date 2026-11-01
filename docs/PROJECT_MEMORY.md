@@ -7,10 +7,10 @@ Current project state for contributors and agents. Keep this short and update it
 ## Current state
 
 - **Phase:** 0, research and design package delivered, and revised after independent review of nine findings in three rounds, plus one clarification. **Phase 0 is not closed.** It awaits owner review, and unresolved questions remain in `COMPATIBILITY.md` §5.
-- **Implementation:** owner authorized M0 on 2026-10-31. Empty `xdcc-core` and unpublished `xdcc-sim` crates, workspace lints, CI, contributor and security documentation now exist. No protocol, runtime, or transfer logic is implemented. `docs/research/` remains research only.
-- **Gate:** authorization covers M0 only. Do not begin M1 or later milestones, E1, or publication without further authorization.
-- **Repository:** M0 changes and the existing research documents are uncommitted. Hosted CI and merge remain outstanding; M0's full definition of done is not yet met.
-- **Local machine:** Rust 1.88.0, rustfmt and Clippy installed for verification with `CARGO_HOME=/tmp/xdcc-m0-cargo` and `RUSTUP_HOME=/tmp/xdcc-m0-rustup`. No shell files were modified; these paths are temporary and may be removed by the operating system.
+- **Implementation:** M0 is merged through PR #1, with its GitHub Actions checks passing. M1, the pure codecs in `src/proto/`, is implemented on `codex/m1-protocol-codecs`, plus tests and three fuzz targets. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
+- **Gate:** authorization covers M0 and M1. Do not begin M2 or later milestones, E1, or publication without further authorization.
+- **Repository:** M1 is uncommitted, for independent review. Hosted CI has not run on it, so M1's definition of done is still open. See `M1_REPORT.md`.
+- **Local machine:** Rust 1.88.0, rustfmt, Clippy, and a nightly for fuzzing installed for verification with `CARGO_HOME=/tmp/xdcc-m0-cargo` and `RUSTUP_HOME=/tmp/xdcc-m0-rustup`, and cargo-fuzz under `/tmp/xdcc-m1-tools`. No shell files were modified; these paths are temporary and may be removed by the operating system.
 - **Security contact:** D8 resolved by owner on 2026-10-31: `sec.krd.hub@proton.me`, documented in root `SECURITY.md`.
 - **Missing inputs:** the brief refers to "Project Instructions" and "Project Context". Neither was in the repository or supplied. If they exist, reconcile this package with them.
 
@@ -37,6 +37,7 @@ Current project state for contributors and agents. Keep this short and update it
 | Rust and Tokio decision | `adr/0001-language-and-runtime.md` |
 | Pinned evidence, models, reproduction steps | `research/README.md` |
 | M0 bootstrap scope, validation, outstanding work | `M0_REPORT.md` |
+| M1 codec scope, corrections, validation, fuzz counts | `M1_REPORT.md` |
 
 ## Key findings
 
@@ -63,6 +64,11 @@ Current project state for contributors and agents. Keep this short and update it
 21. **A failed inspection is not evidence.** A publication probe returns `Same`, `Absent` or `Different`, or `Indeterminate`. Only `ENOENT` means absent. `Indeterminate` commits nothing and changes no file.
 22. **An unknown publication always has one owner:** the worker, then the client's single reconciler, then startup recovery. Retries are bounded, and `wait()` stays pending meanwhile. This can happen after an operation returned an error, not only when one hangs.
 23. **The job type sets permissions, not the thread.** On the reconciler thread, a probe job only inspects and commits. A recovery job may act, but only under the lock, on lookups made in that job, as §7.10 rows 1 to 3 direct.
+24. **Truncation evidence must travel with the bytes.** `parse_ctcp` needs a `LineContext`, and tags never count toward the threshold. A cut ACCEPT is refused rather than read as a position mismatch.
+25. **Fragments of oversized lines are never parsed,** since a cut line can look like a shorter valid one. The framer reports once, then discards through the next LF.
+26. **`cargo deny` skips dev-dependencies' licences by default.** `include-dev = true` is required for it to review them. The fuzz package has its own lockfile and `deny.toml`, and needs its own run.
+27. **A size limit must be checked before the work it limits.** Independent review of M1 found builders copying a body before refusing it. Allocation checks must include refused inputs and outbound paths, not only the parsers.
+28. **`Vec::clone` does not keep spare capacity.** A fixed-buffer guarantee does not survive a derived `Clone`, so `LineFramer` is not `Clone`.
 
 ## Proposed decisions, pending approval
 
@@ -97,14 +103,15 @@ Both crates have `publish = false`. Other decisions below remain proposals.
 
 ## Next step
 
-Review the M0 changes and obtain hosted CI evidence before merging.
-M1 and E1 remain unauthorized. See `M0_REPORT.md` and
-`DEVELOPMENT_PLAN.md` §2.
+Independent review of M1, then hosted CI on all three operating systems. M2 and E1
+remain unauthorized. See `M1_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
 
 ## Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-01 | Independent review of M1: outbound builders check length before allocating, `LineFramer` is no longer `Clone`, `BotNick` refuses all ASCII controls. Regression tests and fuzz coverage added. See `M1_REPORT.md`. |
+| 2026-10-31 | Owner authorized M1. Codecs, vectors, property tests, allocation check, and fuzz targets added on `codex/m1-protocol-codecs`. CASEMAPPING confirmed from S2. API sketch and `PROTOCOL_SPEC.md` §3, §4, §7.5 refined. |
 | 2026-10-31 | Owner supplied private security contact; D8 resolved and root SECURITY.md updated. |
 | 2026-10-31 | Owner approved M0; workspace, empty crates, pinned toolchain, lints, dependency policy, CI and contributor/security documentation added. Local checks recorded in M0_REPORT.md; hosted CI and merge pending. |
 | 2026-10-31 | Phase 0 package drafted |

@@ -25,7 +25,7 @@ def digits(t, maximum, err):
 
 
 def is_zero(t):
-    return t.isascii() and t.isdigit() and int(t) == 0
+    return t.isascii() and t.isdigit() and len(t) <= 20 and int(t) == 0
 
 
 def address(t):

@@ -56,6 +56,28 @@ jobs:
         run: cargo +stable install cargo-deny --version 0.20.2 --locked
       - name: Check advisories, licences, bans, and sources
         run: cargo deny --workspace --locked check
+      - name: Check the fuzz package
+        working-directory: fuzz
+        run: cargo deny --locked check
+
+  fuzz:
+    name: Fuzz smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: nightly
+      - name: Install pinned fuzz runner
+        run: cargo +nightly install cargo-fuzz --version 0.13.2 --locked
+      - name: Run each target for 60 seconds
+        working-directory: fuzz
+        run: |
+          mkdir -p /tmp/irc_line /tmp/ctcp /tmp/dcc_message
+          cargo +nightly fuzz run irc_line /tmp/irc_line seeds/irc_line -- -max_total_time=60 -max_len=20000
+          cargo +nightly fuzz run ctcp /tmp/ctcp seeds/ctcp -- -max_total_time=60 -max_len=70000
+          cargo +nightly fuzz run dcc_message /tmp/dcc_message seeds/dcc_message -- -max_total_time=60 -max_len=2048
 
   research:
     name: Research specification checks
