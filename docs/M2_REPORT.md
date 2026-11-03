@@ -93,6 +93,40 @@ was not treated as evidence. Each resolution below has a test, or says why not.
 | Process | Implementer's passing results predated later edits | Everything was rerun. Nightly doctests were included, since stable does not check `compile_fail` codes. |
 | Pre-commit | The three name oracles (`fuzz/src/lib.rs`, `tests/policy_properties.rs`, `tests/hostile_names.rs`) upper-cased stems with Unicode rules, while §5 and the library ignore ASCII case only. `conın$` (U+0131) became `CONIN$` in the oracle, so `policy_name` crashed on a name the library rightly accepts. The CI fuzz job or proptest could have hit it at random. | Oracles use `to_ascii_uppercase`. Seed `dotless-i-conin` and cases in `windows_device_names_and_streams`. No library code changed. |
 | Pre-commit | `policy` module docs still said §10 needed correcting | Reworded, since §10 is corrected in this change |
+| Merge review | Whether Windows treats a non-ASCII case variant such as `conın$` as a device was open. Microsoft's pages list the names but do not say how case is folded. | Measured on Windows; no defect. See below. `SECURITY.md` §5 corrected: `CONIN$` and `CONOUT$` are real devices, not a project choice. `windows-2022` added to CI. |
+
+## Windows device names
+
+`tests/windows_device_names.rs` runs on Windows only. Each reserved name is tried in upper and
+lower case, with every BMP code point in each position and appended to it. A probe through
+`std::path::absolute` (`GetFullPathNameW`) covers names inside a directory and bare names.
+Exclusive creation followed by a directory listing covers the case variants, including
+`CONIN$` and `CONOUT$`, which `CreateFileW` handles itself. Matching works on UTF-16 code
+units, so a character outside the BMP changes the length and cannot match. One substitution
+at a time is enough because matching is per character. The test fails if `SafeName` returns
+any name Windows treats as a device. A control test fails if the probes stop seeing the ASCII
+names, so the check cannot pass vacuously.
+
+| | Server 2022, build 10.0.20348 | Server 2025, build 10.0.26100 |
+|---|---|---|
+| ASCII names inside a directory | All are devices, with or without an extension, `CONIN$` and `CONOUT$` included | Only `NUL`. `NUL.txt` and `CON` are files. |
+| ASCII names, bare | All are devices | All are devices |
+| Non-ASCII devices | 12: `COM` and `LPT` followed by `¹²³`, in either case | The same 12 |
+| `conın$`, `CONıN$` | Ordinary files | Ordinary files |
+| `SafeName` output a device | None | None |
+
+So comparing stems ignoring ASCII case only is correct on these builds. The superscript result
+matches Microsoft's naming page, and `SafeName` already prefixes those names. The reserved list
+stays the union, because older Windows reserves every name in every directory. Windows 10 and
+11 client builds were not tested.
+
+The probe first ran on a temporary branch, `probe/windows-device-names`, which was deleted
+afterwards. The final run, 41588199981, passed on both images. Earlier runs 41587714438,
+41587897514 and 41587987149 failed on wrong assumptions in the probe's control test: that `CON`
+in a directory is a device on Server 2025, and that `NUL.txt` is. Run 41588138210 did not build.
+None of these failures came from the policy, and the runs remain visible in Actions. PR CI now
+runs the test on `windows-latest` and `windows-2022`. Only `windows-2022` exercises
+reservation of every name inside a directory.
 
 Owner-directed review items:
 
@@ -121,7 +155,7 @@ bound no longer assumes how the standard library grows a buffer. It still relies
 | `NetPolicy::check` | 0 |
 | Limiter, per call after creation | 0 |
 | Worst name in `tests/policy_alloc_bound.rs`, including a sweep of every character normalisation acts on | 12,768 |
-| Worst name found by fuzzing, over both runs | 13,478 |
+| Worst name found by fuzzing, over all runs | 13,478 |
 | Computed bound for one name | 14,914 |
 | Limit | 16,384 |
 
@@ -135,11 +169,12 @@ real figure, and the fuzz margin against the bound is 1,436 bytes.
 
 ## Validation
 
-**Source fingerprint:** `c766dc8aff3d3118161eec6856f79f880062a34a28b2b3c527dcb3a92d1e38f1`,
+**Source fingerprint:** `1007f34d2f6e5bdd7de8e2ab5ae9b26da1edc1d2dfefc00946d383a456c89c71`,
 by the `M1_REPORT.md` method: the SHA-256 of the `sha256sum` listing of tracked and untracked
 files under `src`, `tests`, and `fuzz`, plus `Cargo.toml`, `Cargo.lock`, and `deny.toml`, with paths
-sorted in the C locale. It was the same before and after fuzzing, and it is the committed
-content. The revision reviewed before the pre-commit fixes was `8f264c3c…`.
+sorted in the C locale. It was the same before and after fuzzing. It adds
+`tests/windows_device_names.rs` to the first commit's `c766dc8a…`, and the revision reviewed
+before the pre-commit fixes was `8f264c3c…`.
 
 **Toolchains:** rustc 1.88.0, and rustc 1.101.0-nightly (`3e92e1a2d` 2026-11-01) for fuzzing and
 doctests, on the owner's permanent rustup. cargo-fuzz 0.13.2, cargo-deny 0.20.2, cargo-audit
@@ -161,25 +196,27 @@ doctests, on the owner's permanent rustup. cargo-fuzz 0.13.2, cargo-deny 0.20.2,
 | `cargo audit` | Exit 0, extra to the required list |
 | `cargo mutants` on `src/policy/` | 235 mutants: 208 caught, 21 unviable, 1 timeout, 5 missed |
 
-**Mutation testing** ran before the pre-commit fixes. They changed tests, a fuzz oracle, and
-one doc comment, but no decision code, so the result stands. It excluded `fmt`, `Display`, and `as_str`. The first run left 22 missed, and tests were added for 17. The 5 left do not change a decision: `truncate` `at > 0` (a leading dot is already stripped), a `|` in a constant builder (bits are disjoint), `>` in `check` (it only picks which refusal is reported), and two `&` to `^` in `probe` (one permutes the start, and the other can shrink the probe window, because out-of-range slots are skipped; insert and lookup skip the same slots, so no bypass results). The timeout is an infinite loop, so it counts as detected.
+**Mutation testing** ran before the pre-commit fixes. They and the merge review changed tests,
+a fuzz oracle, CI, documentation and one doc comment, but no decision code, so the result stands. It excluded `fmt`, `Display`, and `as_str`. The first run left 22 missed, and tests were added for 17. The 5 left do not change a decision: `truncate` `at > 0` (a leading dot is already stripped), a `|` in a constant builder (bits are disjoint), `>` in `check` (it only picks which refusal is reported), and two `&` to `^` in `probe` (one permutes the start, and the other can shrink the probe window, because out-of-range slots are skipped; insert and lookup skip the same slots, so no bypass results). The timeout is an infinite loop, so it counts as detected.
 
 ## Fuzz results
 
-Run from `fuzz/` for 75 s each (`policy_name` for 360 s, because its oracle had changed), with
-`-max_total_time` and `-print_final_stats=1`, fresh corpora, and the seeds. The six ran in
-parallel on 12 cores. The figures are from this revision, after the pre-commit fixes.
+Run from `fuzz/` for 75 s each, with `-max_total_time` and `-print_final_stats=1`, fresh
+corpora, and the seeds. The six ran in parallel on 12 cores. The figures are from this revision,
+after the merge review. Execution rates are about half the earlier run's on the same machine.
+The earlier run, at `c766dc8a…`, gave `policy_name` 360 s and 1,497,903 executions with no
+failure. The fuzz binaries are the same, because the only fingerprinted change is a test file.
 
 | Target | `-max_len` | Executed units | Exit | Exec/s | Peak RSS | Largest library allocation | Artifacts |
 |---|---|---|---|---|---|---|---|
-| `policy_name` | 1024 | 1,497,903 | 0 | 4,149 | 499 MiB | 13,363 bytes | 0 |
-| `policy_net` | 256 | 10,655,838 | 0 | 140,208 | 487 MiB | 0 | 0 |
-| `policy_rate` | 4096 | 1,352,854 | 0 | 17,800 | 538 MiB | 0 | 0 |
-| `irc_line` | 20000 | 255,266 | 0 | 3,358 | 431 MiB | 10,100 bytes | 0 |
-| `ctcp` | 70000 | 9,373,624 | 0 | 123,337 | 621 MiB | 510 bytes | 0 |
-| `dcc_message` | 2048 | 13,584,997 | 0 | 178,749 | 519 MiB | 489 bytes | 0 |
+| `policy_name` | 1024 | 140,830 | 0 | 1,853 | 471 MiB | 13,294 bytes | 0 |
+| `policy_net` | 256 | 5,455,219 | 0 | 71,779 | 474 MiB | 0 | 0 |
+| `policy_rate` | 4096 | 950,305 | 0 | 12,504 | 522 MiB | 0 | 0 |
+| `irc_line` | 20000 | 186,852 | 0 | 2,458 | 417 MiB | 10,094 bytes | 0 |
+| `ctcp` | 70000 | 5,813,696 | 0 | 76,496 | 612 MiB | 510 bytes | 0 |
+| `dcc_message` | 2048 | 8,415,199 | 0 | 110,726 | 502 MiB | 490 bytes | 0 |
 
-The worst name in the allocation table, 13,478 bytes, came from the earlier run of the
+The worst name in the allocation table, 13,478 bytes, came from the first run, on the
 pre-fix revision. The library code is the same, so it still applies.
 
 **M1 evidence is separate.** `fuzz/src/lib.rs` gained a helper, and `fuzz/Cargo.toml` a dependency,
@@ -202,13 +239,13 @@ exists. `policy_name` is slow, so it saw far fewer inputs than the others.
 | Fuzz target | **Met.** Three targets, at least 60 s each. |
 | IPv4-mapped and NAT64 bypass cases | **Met** |
 | `SECURITY.md` §4 and §5 match the code | **Met**, by review |
-| CI green on Linux, macOS, Windows | **Pending.** Results are recorded on the PR. |
+| CI green on Linux, macOS, Windows | **Recorded on the PR**, per commit. The report cannot name its own commit. |
 | A reviewable PR, about 500 lines of non-test code | **Partly met.** One PR, as the owner directed, but the code is about twice that. |
 
 ## Limitations and open questions
 
-- **Observation for M1, not an M2 regression.** `irc_line` recorded 10,100 bytes here, above both the 10,088 bytes M1 reported and M1's documented framing figure of 8,702 + 1,377 = 10,079. `src/proto/` is unchanged, so this is an input M1's runs did not reach, or a harness cost that figure did not model. It is under the 16 KiB limit. It was not investigated further, and no M1 measurement was changed.
-- macOS and Windows are unverified. Only Linux x86-64 ran. The new CI steps have not run on GitHub.
+- **Observation for M1, not an M2 regression.** `irc_line` recorded 10,100 bytes in the first two M2 runs (10,094 in the latest), above both the 10,088 bytes M1 reported and M1's documented framing figure of 8,702 + 1,377 = 10,079. `src/proto/` is unchanged, so this is an input M1's runs did not reach, or a harness cost that figure did not model. It is under the 16 KiB limit. It was not investigated further, and no M1 measurement was changed.
+- macOS and Windows run only in hosted CI, and fuzzing runs only on Linux. Windows device names were measured on Server 2022 and 2025, not on client builds.
 - The metadata list is best-effort, and an address change would not be noticed.
 - Deployment-specific NAT64 prefixes cannot be detected.
 - An attacker can still offer a public address. `ApprovedAddr` does not authenticate the peer.
@@ -232,6 +269,7 @@ fuzz/fuzz_targets/policy_name.rs  fuzz/fuzz_targets/policy_net.rs  fuzz/fuzz_tar
 fuzz/seeds/policy_name/  fuzz/seeds/policy_net/  fuzz/seeds/policy_rate/
 src/lib.rs  src/policy/
 tests/hostile_names.rs  tests/policy_alloc_bound.rs  tests/policy_properties.rs  tests/policy_unicode_tables.rs
+tests/windows_device_names.rs
 ```
 
 ## Appendix: design as reviewed before implementation
