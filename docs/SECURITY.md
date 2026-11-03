@@ -1,6 +1,6 @@
 # XDCC Core Security Model
 
-**Status:** Phase 0 draft, revised after independent review, 2026-10-31. Design only. No control below exists yet.
+**Status:** Phase 0 draft, revised after independent review, 2026-10-31. §4, §5 and the offer rate limit describe the pure `policy` layer from M2, which is implemented and in PR review. `SafeName` and `ApprovedAddr` exist, but nothing uses them yet: no socket, file, or transfer code exists. Every other control here is design only, and the policy layer alone does not make a download safe. See `M2_REPORT.md`.
 
 ## 1. Trust model
 
@@ -47,7 +47,7 @@ Likelihood and impact are design estimates.
 | T1 | Unsolicited `DCC SEND` | High | High | SEC-1. Unmatched offers are dropped and counted. |
 | T2 | Offer from impersonated nick, after the real bot quits | Medium | High | Nick match, short window, `user@host` pin at request time where known, hash where known |
 | T3 | SSRF: offer points at a loopback or internal service | High | High | SEC-2, §4 |
-| T4 | Path traversal in filename | High | Critical | SEC-4, §5. Recent real example: CVE-2026-32733 in a Rust client [X4]. |
+| T4 | Path traversal in filename | High | Critical | SEC-4, §5. Recent real example: CVE-2026-32733 in Halloy, a Rust client, through names like `../../.ssh/authorized_keys` [X4]. |
 | T5 | Overwrite by symlink or file swap | Medium | Critical | §6 |
 | T6 | Disk exhaustion through huge claimed size | High | High | `max_file_size`, free-space check, no preallocation by default |
 | T7 | Data overrun beyond the claimed size | Medium | Medium | SEC-6 |
@@ -69,50 +69,111 @@ Likelihood and impact are design estimates.
 
 ## 4. Network destination policy
 
-Default **deny** for destinations in these ranges. Decisions run on canonicalised addresses, so IPv4-mapped IPv6 such as `::ffff:127.0.0.1` is evaluated as IPv4.
+Implemented in `src/policy/`. `NetPolicy::check(addr, port)` is a pure function of its arguments and its configuration. It returns an `ApprovedAddr` or a named refusal.
 
-| Range | Reason |
-|---|---|
-| `0.0.0.0/8`, `::/128` | Unspecified. Port 0 in a non-passive offer is also invalid. |
-| `127.0.0.0/8`, `::1/128` | Loopback |
-| `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7` | Private |
-| `100.64.0.0/10` | CGNAT |
-| `169.254.0.0/16`, `fe80::/10` | Link-local, including cloud metadata at `169.254.169.254` |
-| `192.0.0.0/24`, `192.0.2.0/24`, `198.18.0.0/15`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32` | Special-use, benchmark, documentation |
-| `224.0.0.0/4`, `240.0.0.0/4`, `ff00::/8` | Multicast, reserved, broadcast |
-| `64:ff9b::/96`, `64:ff9b:1::/48` | NAT64, embedded IPv4 is re-evaluated |
-| `2002::/16` | 6to4, embedded IPv4 is re-evaluated |
+### Decision order
 
-**Ports.** Reject ports below 1024 by default. Whether any live bot listens below 1024 is unverified (`COMPATIBILITY.md` Q3). HexChat carries a similar check, commented out, which suggests it once caused a problem. Tests and LAN use set `allow_private_destinations` explicitly.
+1. Canonicalise, so `::ffff:a.b.c.d` is judged as IPv4.
+2. Refuse port 0. Refuse ports below 1024 unless `allow_low_ports` is set. 1023 is refused and 1024 passes.
+3. If the most specific built-in range is a transition range with a fixed layout, decode its embedded IPv4 address. Teredo yields two.
+4. Refuse the never-allowed ranges, for the address and for each decoded one. No setting overrides these.
+5. Refuse on an explicit `deny` rule that matches the address or a decoded one. Deny beats allow.
+6. Find the most specific built-in range. It is cleared only by an `allow` rule that contains the address and is at least as long as that range, or by `allow_private_destinations` for the private class. So `0.0.0.0/0` clears nothing, and a metadata host needs an exact-host rule.
+7. Put each decoded address through steps 4 to 6 as IPv4. All must pass.
+
+Decoding never approves anything. It only adds refusals. So allowing `2002::/16` does not reach `2002:7f00:1::` unless loopback is also allowed.
+
+### Built-in ranges
+
+| Class | Ranges | Cleared by |
+|---|---|---|
+| Never allowed | `0.0.0.0/8`, `::/128`, `224.0.0.0/4`, `240.0.0.0/4` (includes broadcast), `ff00::/8` | Nothing |
+| Loopback | `127.0.0.0/8`, `::1/128` | Allow rule only |
+| Private | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`, `100.64.0.0/10` | `allow_private_destinations`, or allow rule |
+| Link-local | `169.254.0.0/16`, `fe80::/10`, `fec0::/10` | Allow rule only |
+| Metadata | See below | Exact-host allow rule only |
+| Special-use | `192.0.0.0/24`, `192.0.2.0/24`, `198.18.0.0/15`, `198.51.100.0/24`, `203.0.113.0/24`, `2001:db8::/32`, `192.88.99.0/24`, `100::/64`, `100:0:0:1::/64`, `2001::/23`, `3fff::/20`, `5f00::/16`, and IPv6 outside `2000::/3` with no narrower entry | Allow rule only |
+| Transition | `64:ff9b::/96`, `64:ff9b:1::/48`, `2002::/16`, `::/96`, `::ffff:0:0:0/96`, `2001::/32` | Allow rule only, and decoded addresses must also pass |
+
+Other addresses are treated as public. `allow_private_destinations` relaxes the private class only. It does not reach loopback, link-local, metadata, special-use, or transition ranges, and never-allowed ranges cannot be relaxed at all. Loopback for tests and the simulated bot needs an explicit rule such as `127.0.0.1/32`.
+
+`2000::/3` holds all global unicast, per IANA, so addresses outside it are never treated as public. That also catches the neighbours of the NAT64 prefixes. Some entries inside `2001::/23` and `192.0.0.0/24` are globally reachable in the IANA registries, and `64:ff9b::/96` is too. They are denied on purpose, because no DCC peer belongs there.
+
+### Cloud metadata
+
+Hosts inside a relaxed range stay refused, because each is a more specific entry. **The list is best-effort.** Other providers exist, and an address can change.
+
+| Address | Provider | Evidence |
+|---|---|---|
+| `169.254.169.254` | AWS, Azure, GCP, Oracle | Each vendor's documentation |
+| `fd00:ec2::254` | AWS | [Instance metadata retrieval](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html) |
+| `fd20:ce::254` | GCP | [Metadata overview](https://docs.cloud.google.com/compute/docs/metadata/overview), checked in the page source on 2026-11-02 |
+| `100.100.100.200` | Alibaba | [View instance metadata](https://www.alibabacloud.com/help/en/ecs/user-guide/view-instance-metadata) |
+
+No entry is provisional. Two candidates are left out for lack of a documented purpose: `192.0.0.192` is absent from Oracle's page, though `192.0.0.0/24` refuses it anyway, and Azure's `168.63.129.16` appears only in sample output on the page read.
+
+### Translation addresses
+
+This resolves an ambiguity in the earlier table, which listed these prefixes as denied and also said their embedded IPv4 was re-evaluated. **They are denied whole by default.** The embedded address only adds refusals when an explicit rule admits the prefix.
+
+| Prefix | Embedded IPv4 | Source |
+|---|---|---|
+| `64:ff9b::/96` | Bits 96 to 127 | RFC 6052 §2.2, /96 row |
+| `2002::/16` | Bits 16 to 47 | RFC 3056 §2 |
+| `::/96`, except `::` and `::1` | Bits 96 to 127 | RFC 4291 §2.5.5.1 |
+| `::ffff:0:0:0/96` | Bits 96 to 127 | SIIT form |
+| `2001::/32` | Server, bits 32 to 63. Client, bits 96 to 127 inverted. | RFC 4380 §4 |
+| `64:ff9b:1::/48` | **Not decoded** | RFC 8215 says nodes must not assume embedded IPv4 exists or where it sits |
+
+**Detection is not universal.** RFC 6052 lets an operator use a network-specific prefix of /32, /40, /48, /56, /64, or /96 inside global space, and those addresses look like any other. An address under such a prefix is judged as the IPv6 address it is. Only a deployment knows its own prefix, and it can add one as a `deny` rule.
+
+### Rules and `ApprovedAddr`
+
+`IpPrefix` refuses host bits and over-long lengths. A rule inside `::ffff:0:0/96` becomes its IPv4 form, so it matches the addresses it names. A shorter IPv6 rule that contains that range, such as `::/0`, is refused: addresses are canonicalised first, so it could never match the mapped addresses it appears to cover. Each list holds at most 256 rules.
+
+`ApprovedAddr` has private fields and only `NetPolicy::check` builds it, which `compile_fail` tests pin. It records one policy decision for one endpoint at one moment. **It does not authenticate the peer, and it does not replace checking again.** The future `net` layer must call `check` immediately before connecting (SEC-2). Parsing an offer never produces one, and no policy function takes an offer type.
+
+**Ports.** Whether any live bot listens below 1024 is unverified (`COMPATIBILITY.md` Q3). HexChat carries a similar check, commented out, which suggests it once caused a problem.
 
 ```rust
-pub struct NetPolicy {
+pub struct NetPolicyConfig {
     pub allow_private_destinations: bool,   // default false
     pub allow_low_ports: bool,              // default false
-    pub deny: Vec<IpNet>,                   // always wins
-    pub allow: Vec<IpNet>,                  // overrides the built-in deny list
-    pub passive: PassivePolicy,             // default Disabled
+    pub deny: Vec<IpPrefix>,                // always wins
+    pub allow: Vec<IpPrefix>,               // clears built-in ranges, as above
 }
 ```
+
+`PassivePolicy` arrives with passive support in M8.
 
 **Why SSRF severity stands even with no attacker-chosen request body.** A DCC receiver writes ACK bytes to the destination and stores what it returns. This allows port scanning through timing, sending short binary junk to internal services, and storing a banner in a file.
 
 ## 5. Filename sanitising
 
-Output is a single path component, or a refusal. The input is treated as bytes.
+Implemented in `src/policy/`. Output is a single path component, or a refusal. `WireName` is not changed, and RESUME keeps using it. Sanitising uses `WireName::name()`, the bytes without quotes.
 
-1. Decode UTF-8. Invalid bytes map to replacement via lossy decoding. `wire_name` keeps the original.
-2. Take the part after the last `/` or `\`.
-3. Remove control characters, bidi controls (U+202A to U+202E, U+2066 to U+2069), and zero-width and BOM characters.
-4. Replace `< > : " | ? *` with `_`. Colon also blocks NTFS alternate data streams.
-5. Strip leading dots, leading spaces and leading dashes. Strip trailing dots and spaces.
-6. Reject empty results, and `.` or `..`.
-7. Prefix Windows reserved stems (`CON`, `PRN`, `AUX`, `NUL`, `COM0`–`COM9`, `LPT0`–`LPT9`), on every platform for portable results.
-8. Reject names ending in the reserved `.xdccpart` or `.xdccmeta` suffixes.
-9. Truncate to 200 UTF-8 bytes on a character boundary, preserving the extension.
-10. Apply NFC normalisation for stable comparison.
+Input is refused before anything is allocated if it is empty or over 512 bytes. It is then decoded lossily. Each invalid sequence becomes U+FFFD. A pass then runs until it stops changing, at most four times:
+
+1. Normalise to NFC. This comes first because NFC can create ASCII: U+212A becomes `K`, and U+037E becomes `;`. Removal can also create a composable pair, which is why a later pass normalises again.
+2. Keep the text after the last `/` or `\`. A trailing separator leaves nothing, which is refused.
+3. Remove C0, DEL and C1 controls, soft hyphen, U+034F, U+061C, U+180E, U+200B to U+200F, U+2028 to U+202E, U+2060 to U+2064, U+2066 to U+2069, U+FEFF, U+FFF9 to U+FFFB, and tags U+E0000 to U+E007F.
+4. Replace `< > : " | ? *` with `_`, plus the look-alike separators U+2044, U+2215, U+29F8, U+FF0F, U+FF3C and U+FE68. Colon blocks NTFS alternate data streams and drive forms.
+5. Strip leading dots, spaces, and dashes. Strip trailing dots and spaces. Refuse an empty result, so `.` and `..` are refused.
+6. Prefix `_` to a reserved stem. The stem is the text before the first dot, without trailing spaces, compared ignoring ASCII case: `CON`, `PRN`, `AUX`, `NUL`, `COM0`–`COM9`, `LPT0`–`LPT9`, `COM¹ COM² COM³`, `LPT¹ LPT² LPT³`, `CONIN$`, `CONOUT$`.
+7. Refuse names ending in `.xdccpart`, `.xdccmeta`, or `.xdccmeta.tmp`, ignoring ASCII case. The last is the temporary sidecar from `ARCHITECTURE.md` §7.9.
+8. Truncate to 200 UTF-8 bytes on a character boundary. An extension is kept if it has a non-empty stem and is at most 32 bytes, dot included. A longer one is treated as stem, so it is cut rather than preserved.
+
+A result is accepted only if a further pass leaves it unchanged, and a separate predicate that shares no transformation code agrees it is valid. So sanitising an accepted name changes nothing, and truncation cannot leave a reserved name or suffix: if a pass exposes one, a later pass fixes or refuses it. If the passes do not settle, the name is refused.
+
+This corrects the earlier order, which applied NFC last. That let normalisation produce characters the filters had already passed.
+
+**Reserved names.** Microsoft's [naming documentation](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file) lists `COM¹²³` and `LPT¹²³`, which the earlier list omitted, and does not list `COM0` or `LPT0`, which it included. This list is the union. `COM0` and `LPT0` stay as portable caution, and `CONIN$` and `CONOUT$` are a project choice not named on that page. `COM⁴` (U+2074) is not reserved.
+
+**Accepted risk.** Invisible characters outside the list, such as Hangul fillers and variation selectors, are kept. Some removals, notably U+200C and U+200D, are ordinary in some scripts, so they can change or collide real names (Q11).
 
 Percent sequences are not decoded, so `%2F` stays literal and cannot become a separator. KVIrc treats it as a separator. Decoding is the behaviour that creates risk, and leaving it as text is safe.
+
+**What `SafeName` does not establish.** Sanitising causes collisions: `a?b` and `a*b` both become `a_b`, and `CON` and `_CON` both become `_CON`. A `SafeName` does not authorise overwriting and does not establish containment. Symlinks, races between check and create, exclusive creation, and case collisions on the target filesystem belong to storage work in M5 (SEC-4, SEC-5, §6). `SafeName` has private construction, with no default, conversion, parsing, deserialisation, or mutable accessor.
 
 Rejecting is preferred to guessing. Hosts can supply `name_override`.
 
@@ -187,8 +248,9 @@ DCC is plaintext unless using SDCC, which itself does not verify certificates [S
 | Limit | Default |
 |---|---|
 | Inbound line | 8191 + 512 bytes |
-| Offers per nick | 5 per minute |
-| Unmatched offer memory | None retained |
+| Offers per nick | Sustained 5 per minute, burst 5, so at most 9 in any 60 s window |
+| Offer rate keys tracked | 1,024 fingerprints in fixed memory. See below. |
+| Unmatched offer memory | No offer content retained. See below. |
 | Concurrent transfers | 4 |
 | Per-bot concurrent transfers | 1 |
 | Max file size | 64 GiB |
@@ -204,6 +266,16 @@ DCC is plaintext unless using SDCC, which itself does not verify certificates [S
 | Finished outcomes retained | 1,024 |
 | Filename input | 512 bytes |
 | Bot notice retained | 512 bytes |
+
+These are configuration values. `Limits::new` refuses unsafe settings, such as zeros and products that overflow. Validating a value does not enforce it. The filename input limit and the offer rate are implemented in `policy`, but no caller exists, so they take effect only when M5 and M6 use them. The inbound line limit is in `LineFramer`. The others name what later layers must enforce, and those layers do not exist yet.
+
+**Offer rate limiter.** It uses GCRA over integer milliseconds, with time passed in by the caller, and reads no clock. "5 per minute" is a sustained rate with a burst of 5, not a hard cap: 5 at once, then one every 12 s, so a nick can reach 9 in one 60 s window. A hard cap would need a timestamp log per nick. Time that runs backwards neither refills nor panics.
+
+**What is retained for unmatched offers.** The limiter keeps no nick, filename, or address, but it does keep a keyed 64-bit fingerprint of each nick it is asked about, with one arrival time, in a table fixed at creation. This corrects the earlier "none retained" for anything the limiter sees. The engine should consult the limiter only after matching an offer to a request, so unrequested offers never occupy a slot. M6 must hold to that.
+
+**Flood behaviour.** A slot is reclaimed only once its bucket has fully refilled, so a flood cannot reset an attacker's budget. A nick with no slot shares one overflow bucket, and a nick claiming a new slot starts from that bucket's state, so a nick that spent shared budget cannot take a fresh slot. **The cost:** once the shared bucket is spent, every new nick waits for up to one window, even if slots are free, and that includes a requested bot. Nicks already tracked are unaffected.
+
+**CASEMAPPING changes.** Fingerprints cannot be recomputed. Nicks with no byte that folds differently keep their fingerprint and are unaffected. Nicks with such a byte, tracked or new, have no spare budget until every bucket from before the change has refilled.
 
 ## 11. Logging and privacy
 

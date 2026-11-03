@@ -10,6 +10,7 @@ use std::alloc::System;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
+use unicode_normalization::UnicodeNormalization;
 use xdcc_core::proto::{
     DccMessage, Frame, IrcMessage, LineContext, LineFramer, MAX_LINE_LEN, ReplyTailKind,
     inbound_ctcp, parse_ctcp, parse_dcc,
@@ -120,4 +121,83 @@ pub fn frame_stream(first: &[u8], second: &[u8]) -> Vec<Result<Vec<u8>, String>>
     assert_eq!(push_bytes, 0, "framer allocated while framing");
     check_bound(framer_bytes + worst_line);
     frames
+}
+
+/// What every accepted `SafeName` must satisfy, restated without the library.
+pub fn check_safe_name(name: &str) {
+    assert!(!name.is_empty() && name.len() <= 200, "length of {name:?}");
+    assert!(name.nfc().eq(name.chars()), "{name:?} is not NFC");
+    assert!(!name.starts_with(['.', ' ', '-']), "{name:?}");
+    assert!(!name.ends_with(['.', ' ']), "{name:?}");
+    for c in name.chars() {
+        assert!(!c.is_control(), "{name:?}");
+        assert!(!"/\\<>:\"|?*".contains(c), "{name:?}");
+        assert!(
+            !matches!(
+                u32::from(c),
+                0xAD | 0x34F
+                    | 0x61C
+                    | 0x180E
+                    | 0x200B..=0x200F
+                    | 0x2028..=0x202E
+                    | 0x2060..=0x2064
+                    | 0x2066..=0x2069
+                    | 0xFEFF
+                    | 0xFFF9..=0xFFFB
+                    | 0xE0000..=0xE007F
+                    | 0x2044
+                    | 0x2215
+                    | 0x29F8
+                    | 0xFF0F
+                    | 0xFF3C
+                    | 0xFE68
+            ),
+            "{name:?}"
+        );
+    }
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(' ')
+        .to_ascii_uppercase();
+    let reserved = [
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "CONIN$",
+        "CONOUT$",
+        "COM0",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT0",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+        "COM\u{B9}",
+        "COM\u{B2}",
+        "COM\u{B3}",
+        "LPT\u{B9}",
+        "LPT\u{B2}",
+        "LPT\u{B3}",
+    ];
+    assert!(!reserved.contains(&stem.as_str()), "{name:?}");
+    let lower = name.to_ascii_lowercase();
+    for suffix in [".xdccpart", ".xdccmeta", ".xdccmeta.tmp"] {
+        assert!(!lower.ends_with(suffix), "{name:?}");
+    }
 }

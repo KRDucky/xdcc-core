@@ -113,11 +113,11 @@ With `default-features = false`, only `proto`, `policy`, `machine`, and `profile
 | `engine` | Tasks, channels, timers, retry | Contain protocol parsing |
 | `link` | IRC channel pair, epochs, built-in pump | Understand DCC |
 
-`policy::ApprovedAddr` can be constructed only by `NetPolicy::check`, and `net::connect` takes that type. So SEC-2 is enforced by the compiler. `store::SafeName` works the same way for SEC-4.
+`policy::ApprovedAddr` can be constructed only by `NetPolicy::check`, and `net::connect` will take that type. So the compiler can require a decision, though `net` must still check again immediately before connecting (SEC-2). `policy::SafeName` works the same way for SEC-4. It lives in `policy`, not `store`, because sanitising needs no filesystem and later layers share it.
 
 ## 5. Dependencies
 
-Versions and data were read from crates.io on 2026-10-31.
+Versions and data were read from crates.io on 2026-10-31. `ipnet` was removed in M2: `policy::IpPrefix` is smaller and also handles IPv4-mapped rules.
 
 ### Runtime
 
@@ -133,7 +133,7 @@ Versions and data were read from crates.io on 2026-10-31.
 | `cap-fs-ext` | 4.0 | as above | No-follow and extended open options |
 | `rustix` | 1.1 | as above | `renameat2` with `RENAME_NOREPLACE` |
 | `socket2` | 0.6 | MIT or Apache-2.0 | Port-range binding, socket options |
-| `ipnet` | 2.12 | MIT or Apache-2.0 | Allow and deny networks |
+| `unicode-normalization` | 0.1.26 | (MIT or Apache-2.0) and Unicode-3.0 | NFC for filenames. Added in M2, with `tinyvec`. Unicode 18.0.0 tables. |
 | `serde`, `serde_json` | 1.0 | MIT or Apache-2.0 | Sidecar format |
 | `crc32fast` | 1.5 | MIT or Apache-2.0 | Filename CRC32 check |
 | `sha2` | 0.11 | MIT or Apache-2.0 | Host-supplied SHA-256 |
@@ -1168,7 +1168,7 @@ Implemented in M1, in `src/proto/`. Usable with `default-features = false`. Thre
 
 - `parse_ctcp` takes a `LineContext`, because a body alone cannot show how long its line was, and `SuspectedTruncation` needs that.
 - `parse_dcc` takes the pending attempt's tail kind, because ACCEPT cannot be parsed without it (`PROTOCOL_SPEC.md` §7.5).
-- `WireName::sanitize` waits for M2. M1 has no filesystem policy.
+- Sanitising is `policy::SafeName::from_wire(&WireName)`, added in M2, so `proto` does not depend on `policy`.
 
 ```rust
 pub fn parse_ctcp(body: &[u8], line: LineContext) -> Result<Ctcp<'_>, CtcpError>;
@@ -1214,7 +1214,6 @@ impl WireName {
     pub fn as_bytes(&self) -> &[u8];     // exact field, quotes included
     pub fn is_quoted(&self) -> bool;
     pub fn name(&self) -> &[u8];         // without quotes
-    // pub fn sanitize(&self, rules: &NameRules) -> Result<SafeName, NameError>;   arrives in M2
 }
 ```
 

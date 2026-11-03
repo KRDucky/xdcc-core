@@ -2,15 +2,15 @@
 
 Current project state for contributors and agents. Keep this short and update it at each milestone.
 
-**Last updated:** 2026-10-31
+**Last updated:** 2026-11-02
 
 ## Current state
 
 - **Phase:** 0, research and design package delivered, and revised after independent review of nine findings in three rounds, plus one clarification. **Phase 0 is not closed.** It awaits owner review, and unresolved questions remain in `COMPATIBILITY.md` §5.
-- **Implementation:** M0 is merged through PR #1, with its GitHub Actions checks passing. M1, the pure codecs in `src/proto/`, is implemented on `codex/m1-protocol-codecs`, plus tests and three fuzz targets. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
-- **Gate:** authorization covers M0 and M1. Do not begin M2 or later milestones, E1, or publication without further authorization.
-- **Repository:** M1 is uncommitted, for independent review. Hosted CI has not run on it, so M1's definition of done is still open. See `M1_REPORT.md`.
-- **Local machine:** Rust 1.88.0, rustfmt, Clippy, and a nightly for fuzzing installed for verification with `CARGO_HOME=/tmp/xdcc-m0-cargo` and `RUSTUP_HOME=/tmp/xdcc-m0-rustup`, and cargo-fuzz under `/tmp/xdcc-m1-tools`. No shell files were modified; these paths are temporary and may be removed by the operating system.
+- **Implementation:** M0 and M1 are merged through PR #1 and PR #2, reviewed, and passed post-merge CI. M2, the pure policy layer in `src/policy/`, is implemented on `codex/m2-safety-policies`. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
+- **Gate:** authorization covers M0 to M2. Do not begin M3 or later milestones, E1, or publication without further authorization.
+- **Repository:** M2 is committed on `codex/m2-safety-policies` for PR review. Its definition of done stays open until hosted CI passes on all three operating systems. See `M2_REPORT.md`. `dev/irc-lab/` is the owner's Docker lab: it is not part of M2, so stage M2 files selectively.
+- **Local machine:** the owner installed rustup (Rust 1.88.0, stable, nightly), cargo-deny, cargo-fuzz, cargo-audit, and cargo-mutants under `~/.cargo`. The `/tmp` tool paths in earlier reports were temporary.
 - **Security contact:** D8 resolved by owner on 2026-10-31: `sec.krd.hub@proton.me`, documented in root `SECURITY.md`.
 - **Missing inputs:** the brief refers to "Project Instructions" and "Project Context". Neither was in the repository or supplied. If they exist, reconcile this package with them.
 
@@ -38,6 +38,7 @@ Current project state for contributors and agents. Keep this short and update it
 | Pinned evidence, models, reproduction steps | `research/README.md` |
 | M0 bootstrap scope, validation, outstanding work | `M0_REPORT.md` |
 | M1 codec scope, corrections, validation, fuzz counts | `M1_REPORT.md` |
+| M2 policy behaviour, corrections, review findings, validation | `M2_REPORT.md` |
 
 ## Key findings
 
@@ -69,6 +70,11 @@ Current project state for contributors and agents. Keep this short and update it
 26. **`cargo deny` skips dev-dependencies' licences by default.** `include-dev = true` is required for it to review them. The fuzz package has its own lockfile and `deny.toml`, and needs its own run.
 27. **A size limit must be checked before the work it limits.** Independent review of M1 found builders copying a body before refusing it. Allocation checks must include refused inputs and outbound paths, not only the parsers.
 28. **`Vec::clone` does not keep spare capacity.** A fixed-buffer guarantee does not survive a derived `Clone`, so `LineFramer` is not `Clone`.
+29. **Translation prefixes are denied whole, and decoding only adds refusals.** `64:ff9b:1::/48` is never decoded, because RFC 8215 fixes no layout. Deployment-specific NAT64 prefixes cannot be detected from an address.
+30. **An allow rule clears a built-in range only if it is at least as long as that range,** so `0.0.0.0/0` clears nothing, and a metadata host needs an exact-host rule.
+31. **NFC comes first and runs again.** It can create ASCII, and removal can create composable pairs, so a pass repeats until stable and a separate predicate accepts the result.
+32. **A rate-limiter slot is reclaimed only once fully refilled.** A new key inherits the shared bucket, so a flood delays new nicks by up to one window. Consult the limiter only after request matching.
+33. **Re-normalising after a removal can lengthen text.** An allocation bound must rest on checked facts. `tests/policy_unicode_tables.rs` checks them for every scalar value.
 
 ## Proposed decisions, pending approval
 
@@ -103,13 +109,14 @@ Both crates have `publish = false`. Other decisions below remain proposals.
 
 ## Next step
 
-Independent review of M1, then hosted CI on all three operating systems. M2 and E1
-remain unauthorized. See `M1_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
+PR review of M2, with hosted CI on all three operating systems. M3, E1, and
+publication remain unauthorized. See `M2_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
 
 ## Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-02 | M2 implemented and committed for PR review: `src/policy/`, tests, three fuzz targets, first production dependency (`unicode-normalization`). `SECURITY.md` §4, §5, §10 corrected to match. Status of M1 corrected. See `M2_REPORT.md`. |
 | 2026-11-01 | Independent review of M1: outbound builders check length before allocating, `LineFramer` is no longer `Clone`, `BotNick` refuses all ASCII controls. Regression tests and fuzz coverage added. See `M1_REPORT.md`. |
 | 2026-10-31 | Owner authorized M1. Codecs, vectors, property tests, allocation check, and fuzz targets added on `codex/m1-protocol-codecs`. CASEMAPPING confirmed from S2. API sketch and `PROTOCOL_SPEC.md` §3, §4, §7.5 refined. |
 | 2026-10-31 | Owner supplied private security contact; D8 resolved and root SECURITY.md updated. |

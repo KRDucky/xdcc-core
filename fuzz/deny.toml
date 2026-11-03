@@ -11,7 +11,8 @@ confidence-threshold = 0.93
 # still run on developer and CI machines, so they get the same review.
 include-dev = true
 # NCSA covers libFuzzer. It is needed only by this unpublished package.
-allow = ["Apache-2.0", "GPL-3.0-only", "MIT", "NCSA"]
+# Unicode-3.0 covers the normalisation tables in unicode-normalization.
+allow = ["Apache-2.0", "GPL-3.0-only", "MIT", "NCSA", "Unicode-3.0"]
 
 [bans]
 multiple-versions = "warn"

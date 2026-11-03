@@ -63,7 +63,7 @@ jobs:
   fuzz:
     name: Fuzz smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
@@ -74,10 +74,13 @@ jobs:
       - name: Run each target for 60 seconds
         working-directory: fuzz
         run: |
-          mkdir -p /tmp/irc_line /tmp/ctcp /tmp/dcc_message
+          mkdir -p /tmp/irc_line /tmp/ctcp /tmp/dcc_message /tmp/policy_name /tmp/policy_net /tmp/policy_rate
           cargo +nightly fuzz run irc_line /tmp/irc_line seeds/irc_line -- -max_total_time=60 -max_len=20000
           cargo +nightly fuzz run ctcp /tmp/ctcp seeds/ctcp -- -max_total_time=60 -max_len=70000
           cargo +nightly fuzz run dcc_message /tmp/dcc_message seeds/dcc_message -- -max_total_time=60 -max_len=2048
+          cargo +nightly fuzz run policy_name /tmp/policy_name seeds/policy_name -- -max_total_time=60 -max_len=1024
+          cargo +nightly fuzz run policy_net /tmp/policy_net seeds/policy_net -- -max_total_time=60 -max_len=256
+          cargo +nightly fuzz run policy_rate /tmp/policy_rate seeds/policy_rate -- -max_total_time=60 -max_len=4096
 
   research:
     name: Research specification checks

@@ -1,8 +1,8 @@
 # XDCC Core Development Plan
 
-**Status:** Phase 0 design revised after independent review. The owner authorized
-M0 on 2026-10-31, and it is merged. The owner then authorized M1. Authorization
-does not extend to M2 or later milestones or E1.
+**Status:** Phase 0 design revised after independent review. M0 and M1 are merged,
+reviewed, and passed hosted CI. The owner authorized M2. Authorization
+does not extend to M3 or later milestones or E1.
 
 ## 1. Stages
 
@@ -37,9 +37,8 @@ Every milestone's definition of done includes the following, unless stated:
 
 ### M0: Repository bootstrap
 
-**Progress, 2026-10-31:** bootstrap files implemented and checked locally on Linux
-with Rust 1.88.0. CI is configured for Linux, macOS, and Windows; hosted runs and
-merge have not occurred. D8 is resolved: the owner supplied
+**Progress, 2026-11-02:** done. Merged through PR #1, with hosted CI passing. D8 is
+resolved: the owner supplied
 `sec.krd.hub@proton.me`, documented in root `SECURITY.md`.
 See `M0_REPORT.md` for evidence.
 
@@ -55,10 +54,9 @@ See `M0_REPORT.md` for evidence.
 
 ### M1: Protocol codecs
 
-**Progress, 2026-10-31:** implemented on `codex/m1-protocol-codecs`, uncommitted for
-independent review. Local checks and fuzz counts are in `M1_REPORT.md`. Hosted CI on
-Linux, macOS, and Windows has not run on this work, so M1's definition of done is
-still open.
+**Progress, 2026-11-02:** done. Merged through PR #2 at `dcc4a32`, after independent
+review, and post-merge CI passed on Linux, macOS, and Windows. `M1_REPORT.md` holds the
+measurements taken for that review.
 
 | | |
 |---|---|
@@ -71,6 +69,10 @@ still open.
 | **Done** | No I/O or Tokio in `proto`, proven by `--no-default-features` build |
 
 ### M2: Safety policies
+
+**Progress, 2026-11-02:** implemented on `codex/m2-safety-policies` and committed
+for PR review. Local evidence and unmet criteria are in `M2_REPORT.md`. Hosted CI results are
+on the PR, and M2's definition of done stays open until they pass.
 
 | | |
 |---|---|

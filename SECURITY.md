@@ -1,7 +1,7 @@
 # Security reporting
 
-XDCC Core has pure protocol codecs from M1 and no network, storage, or transfer
-handling. No release is supported for production use yet.
+XDCC Core has pure protocol codecs from M1, pure safety policies from M2, and no
+network, storage, or transfer handling. No release is supported for production use yet.
 
 ## Private reports
 

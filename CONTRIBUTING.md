@@ -1,8 +1,9 @@
 # Contributing to XDCC Core
 
-The library holds pure protocol codecs from M1. Each later milestone needs separate
-owner authorization; see [the development plan](docs/DEVELOPMENT_PLAN.md). No network,
-storage, or transfer behavior exists yet.
+The library holds pure protocol codecs from M1 and pure safety policies from M2. Each
+later milestone needs separate owner authorization; see
+[the development plan](docs/DEVELOPMENT_PLAN.md). No network, storage, or transfer
+behavior exists yet.
 
 ## Setup
 
@@ -23,9 +24,10 @@ cargo deny --workspace --locked check
 
 Install `cargo-deny` separately using the version in `.github/workflows/ci.yml`.
 This developer tool may require a newer Rust compiler than the library's MSRV.
-The library has no production dependencies, and dev-dependencies get the same
-licence review (`include-dev` in `deny.toml`). Commit `Cargo.lock` so CI resolves
-exactly the reviewed dependency graph when dependencies are added.
+The library's only production dependency is `unicode-normalization` (NFC for filenames,
+with `tinyvec`), and dev-dependencies get the same licence review (`include-dev` in
+`deny.toml`). Commit `Cargo.lock` so CI resolves exactly the reviewed dependency graph
+when dependencies are added.
 
 ## Fuzzing
 
@@ -35,13 +37,23 @@ lockfile and `deny.toml`. Install `cargo-fuzz` using the version in
 
 ```sh
 mkdir -p /tmp/irc_line-corpus /tmp/ctcp-corpus /tmp/dcc_message-corpus
+mkdir -p /tmp/policy_name-corpus /tmp/policy_net-corpus /tmp/policy_rate-corpus
 cargo +nightly fuzz run irc_line /tmp/irc_line-corpus seeds/irc_line -- -max_len=20000
 cargo +nightly fuzz run ctcp /tmp/ctcp-corpus seeds/ctcp -- -max_len=70000
 cargo +nightly fuzz run dcc_message /tmp/dcc_message-corpus seeds/dcc_message -- -max_len=2048
+cargo +nightly fuzz run policy_name /tmp/policy_name-corpus seeds/policy_name -- -max_len=1024
+cargo +nightly fuzz run policy_net /tmp/policy_net-corpus seeds/policy_net -- -max_len=256
+cargo +nightly fuzz run policy_rate /tmp/policy_rate-corpus seeds/policy_rate -- -max_len=4096
 ```
 
 Each target fails on over 16 KiB of library allocation for one input, and on a
-broken round trip. A crash becomes a seed in `fuzz/seeds/` and a named test.
+broken round trip or violated invariant. The policy targets also check that a
+rate limiter never grows after construction. `-max_len` is the longest useful
+input: 1024 for names (the limit is 512, so oversized input is covered), 256 for the
+address layout (header plus eight rules), and 4096 for rate-limiter operation
+streams. A crash becomes a seed in `fuzz/seeds/` and a named test. Seed filenames use
+lowercase ASCII, digits and hyphens only, so they check out on Windows and macOS;
+hostile bytes go in the file contents.
 
 ## Change scope
 

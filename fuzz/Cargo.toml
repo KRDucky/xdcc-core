@@ -12,6 +12,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4.13"
 stats_alloc = "0.1.10"
+unicode-normalization = { version = "0.1.26", default-features = false }
 xdcc-core = { path = ".." }
 
 # Excluded from the repository workspace, so it stays out of normal builds.
@@ -42,6 +43,27 @@ bench = false
 [[bin]]
 name = "dcc_message"
 path = "fuzz_targets/dcc_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "policy_name"
+path = "fuzz_targets/policy_name.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "policy_net"
+path = "fuzz_targets/policy_net.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "policy_rate"
+path = "fuzz_targets/policy_rate.rs"
 test = false
 doc = false
 bench = false
