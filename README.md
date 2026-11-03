@@ -8,6 +8,8 @@ codecs, and decides on destinations, filenames, limits, and offer rates. Nothing
 uses those decisions yet, and downloads are not implemented. Results come from unit,
 property, and fuzz tests, so no real-world compatibility is claimed.
 
+**Platform support:** Linux only. Windows and macOS are unsupported and are not tested in CI.
+
 ## Development
 
 Rust 1.88.0, edition 2024. Install [rustup](https://rustup.rs/), then run:

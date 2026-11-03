@@ -5,6 +5,9 @@ later milestone needs separate owner authorization; see
 [the development plan](docs/DEVELOPMENT_PLAN.md). No network, storage, or transfer
 behavior exists yet.
 
+Linux is the only supported platform. CI and future milestone acceptance target Linux;
+Windows and macOS support is out of scope.
+
 ## Setup
 
 Install Rust using [rustup](https://rustup.rs/). The repository's
@@ -52,7 +55,7 @@ rate limiter never grows after construction. `-max_len` is the longest useful
 input: 1024 for names (the limit is 512, so oversized input is covered), 256 for the
 address layout (header plus eight rules), and 4096 for rate-limiter operation
 streams. A crash becomes a seed in `fuzz/seeds/` and a named test. Seed filenames use
-lowercase ASCII, digits and hyphens only, so they check out on Windows and macOS;
+lowercase ASCII, digits and hyphens only, so tools and archives handle them safely;
 hostile bytes go in the file contents.
 
 ## Change scope

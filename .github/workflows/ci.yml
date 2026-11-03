@@ -17,15 +17,9 @@ env:
 
 jobs:
   rust:
-    name: Rust 1.88 / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Rust 1.88 / ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # windows-2022 reserves every device name in every directory; windows-latest
-        # (Server 2025) reserves only NUL there. tests/windows_device_names.rs needs both.
-        os: [ubuntu-latest, macos-latest, windows-latest, windows-2022]
     env:
       RUSTDOCFLAGS: -D warnings
     steps:
