@@ -2,7 +2,7 @@
 
 A Rust library for XDCC protocol handling and reliable DCC downloads.
 
-**Status:** M1, protocol codecs, is merged. M2, pure safety policies, is under review.
+**Status:** M1, protocol codecs, and M2, pure safety policies, are merged.
 The library parses and encodes IRC, CTCP, DCC, and XDCC messages as pure byte
 codecs, and decides on destinations, filenames, limits, and offer rates. Nothing
 uses those decisions yet, and downloads are not implemented. Results come from unit,

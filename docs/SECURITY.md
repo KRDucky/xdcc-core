@@ -1,6 +1,6 @@
 # XDCC Core Security Model
 
-**Status:** Phase 0 draft, revised after independent review, 2026-10-31. §4, §5 and the offer rate limit describe the pure `policy` layer from M2, which is implemented and in PR review. `SafeName` and `ApprovedAddr` exist, but nothing uses them yet: no socket, file, or transfer code exists. Every other control here is design only, and the policy layer alone does not make a download safe. See `M2_REPORT.md`.
+**Status:** Phase 0 draft, revised after independent review, 2026-10-31. §4, §5 and the offer rate limit describe the pure `policy` layer from M2, which is merged through PR #3. `SafeName` and `ApprovedAddr` exist, but nothing uses them yet: no socket, file, or transfer code exists. Every other control here is design only, and the policy layer alone does not make a download safe. See `M2_REPORT.md`.
 
 ## 1. Trust model
 
