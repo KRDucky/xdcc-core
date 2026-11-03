@@ -4,6 +4,8 @@
 reviewed, and passed hosted CI. Authorization does not extend to M3 or later
 milestones or E1.
 
+**Platform scope (2026-11-03):** Linux only. Windows and macOS are unsupported. Earlier milestone reports retain their historical cross-platform results.
+
 ## 1. Stages
 
 | Stage | Milestones | Outcome |
@@ -30,7 +32,7 @@ M1 and M2 can proceed in parallel. M8 and M9 can run in parallel after M7. E1 us
 
 Every milestone's definition of done includes the following, unless stated:
 
-- CI green on Linux, macOS, Windows: `fmt`, `clippy -D warnings`, tests, docs, `cargo deny`.
+- CI green on Linux: `fmt`, `clippy -D warnings`, tests, docs, `cargo deny`.
 - New code has tests. No `unsafe`.
 - `docs/` updated for any change in behaviour. `PROJECT_MEMORY.md` updated.
 - A reviewable PR, ideally under about 500 lines of non-test code.
@@ -116,7 +118,7 @@ review, and post-merge CI run 41590039217 passed all seven jobs on Linux, macOS,
 | **Dependencies** | M2 |
 | **Deliverables** | Storage API, failpoints for every CP and F step, and a platform behaviour table |
 | **Required tests** | Symlink, hard link, and swapped-file attacks. Conflict policies. Disk-full simulation. Durability levels L1 and L2 (§3.7). Every row of the §7.9 and §7.10 recovery tables. Every F2 result, including an error after the operation acted. Every probe result, with lookups failed by failpoint. Every probe-result action in recovery. Every post-publication failure. Injected sync failure followed by every checkpoint trigger. A blocked job, proving task abort does not stop it. |
-| **Acceptance** | All `SECURITY.md` §6 cases pass on Linux, macOS, Windows. Existing target files are never overwritten in any test. Recovery converges from every failpoint, and is idempotent. Ported L2 model passes. |
+| **Acceptance** | All `SECURITY.md` §6 cases pass on Linux. Existing target files are never overwritten in any test. Recovery converges from every failpoint, and is idempotent. Ported L2 model passes. |
 | **Risks** | `RENAME_NOREPLACE`, directory sync, and FA-1 and FA-2 in `ARCHITECTURE.md` §7.10 vary across filesystems |
 | **Done** | Platform table in `ARCHITECTURE.md` §7.10 updated from test results, including which filesystems give a stable identity and which errors each returns from a lookup. Process-crash results are not described as power-loss durability. |
 
@@ -301,7 +303,7 @@ Crashes become permanent regression tests. Seed corpus comes from `PROTOCOL_SPEC
 
 | Job | Trigger |
 |---|---|
-| fmt, clippy, tests on Linux, macOS, Windows | PR |
+| fmt, clippy, tests on Linux | PR |
 | MSRV build | PR |
 | `cargo deny`, `cargo audit` | PR and nightly |
 | Miri on pure modules | Nightly |
@@ -365,12 +367,12 @@ Process-crash tests and power-loss tests prove different things, and results mus
 
 | Level | Method | Proves | Does not prove | Where |
 |---|---|---|---|---|
-| L1 Process crash | Kill the process at a failpoint at every CP and F step, then recover | Recovery logic and step ordering. The OS page cache survives, so unsynced data still looks durable. | Anything about power loss | M5, M7. All OSes. |
+| L1 Process crash | Kill the process at a failpoint at every CP and F step, then recover | Recovery logic and step ordering. The OS page cache survives, so unsynced data still looks durable. | Anything about power loss | M5, M7. Linux. |
 | L2 Crash-state, shutdown, and probe models | Port `research/durability_model.py`: enumerate states allowed by a stated filesystem model, and interleavings of the worker with shutdown and reconciliation, with lookups that can fail | The protocol is safe under those models | That any real filesystem or runtime matches them | M5. CI. |
 | L3 Block-level replay | [dm-log-writes](https://www.kernel.org/doc/html/latest/admin-guide/device-mapper/log-writes.html) in a privileged VM: replay the log to chosen points, mount, run recovery, check | Behaviour of a specific kernel and filesystem under write loss at flush boundaries | Other filesystems, or devices that ignore flushes | M9. ext4 and xfs on Linux. |
 | L4 Physical power cut | Not planned | n/a | n/a | Owner decision D15 |
 
-Durability claims name the filesystem, kernel, and level. macOS and Windows have L1 only, so their documentation says process-crash tested and makes no power-loss claim.
+Durability claims name the filesystem, kernel, and level. Linux is the only supported platform; no macOS or Windows testing or durability claims are planned.
 
 The models establish logic only. An in-flight publication needs L1-style tests on real files (OT-16), and a failed lookup needs tests on real errors (OT-22 to OT-26). These exist from M5 and M6. Injected lookup failures show how the library reacts, and say nothing about which errors a real filesystem returns.
 

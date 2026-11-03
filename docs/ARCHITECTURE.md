@@ -2,6 +2,8 @@
 
 **Status:** Phase 0 draft, revised after independent review, 2026-10-31. Design only. All Rust below is illustrative, and none is implemented.
 
+**Platform scope:** Linux only. Windows and macOS support is out of scope.
+
 ## 1. Purpose and principles
 
 XDCC Core is a reusable Rust library that requests a pack from an XDCC bot, negotiates a DCC transfer, downloads the file safely, and resumes interrupted downloads.
@@ -155,7 +157,7 @@ Versions and data were read from crates.io on 2026-10-31. `ipnet` was removed in
 | `libfuzzer-sys` | 0.4 | Fuzzing |
 | `tempfile` | 3.27 | Isolated directories |
 
-A crate for cross-platform file identity is evaluated at M5, for the publication probe and recovery rows in §7.10.
+Linux file identity uses device and inode at M5, for the publication probe and recovery rows in §7.10.
 
 ### Rejected
 
@@ -407,9 +409,9 @@ A queued `Finalize` that loses to `cancel()` does nothing. Claiming inside the j
 
 ### Publication probe
 
-One classification, used by the worker, the reconciler, and startup recovery. It compares names against the file's identity, using no-follow lookups relative to the open directory handle. Identity is the device and inode recorded at open, or volume and file index on Windows. After a restart it is the sidecar's `file_id`.
+One classification, used by the worker, the reconciler, and startup recovery. It compares names against the file's identity, using no-follow lookups relative to the open directory handle. Identity is the device and inode recorded at open. After a restart it is the sidecar's `file_id`.
 
-**A failed inspection is never evidence about publication.** `ENOENT`, or its platform equivalent, is the only lookup error that means a name is absent. Every other error, such as `EIO`, `ESTALE`, `EACCES`, or a timeout, is a failed lookup. So is a platform that cannot return a stable identity.
+**A failed inspection is never evidence about publication.** `ENOENT` is the only lookup error that means a name is absent. Every other error, such as `EIO`, `ESTALE`, `EACCES`, or a timeout, is a failed lookup. So is a platform that cannot return a stable identity.
 
 | Lookup of `N` | Lookup of `P` | Result | Meaning |
 |---|---|---|---|
@@ -933,7 +935,7 @@ Backoff: 30 s base, doubling, 10 min cap, full jitter, 5 attempts. A per-bot bud
 }
 ```
 
-`crc32` covers the other fields. It detects a torn or stale write and is not a security control. Unknown versions are refused and never overwritten. `file_id` is the inode or file index, without the device, which can change across a restart. F1 records it, and it stays null if the filesystem gives no stable identity.
+`crc32` covers the other fields. It detects a torn or stale write and is not a security control. Unknown versions are refused and never overwritten. `file_id` is the inode, without the device, which can change across a restart. F1 records it, and it stays null if the filesystem gives no stable identity.
 
 `seq` increases on every write, including phase records. **Atomic rename is not durability.** It gives readers old-or-new, but a crash can persist the rename before the new file's data, and `fsync` on a file does not necessarily persist its directory entry ([fsync(2)](https://man7.org/linux/man-pages/man2/fsync.2.html)). The ordered protocol below handles both. `research/durability_model.py` shows the earlier procedure losing its sidecar under a pessimistic model, and this one staying safe.
 
@@ -1023,7 +1025,7 @@ plan_checkpoint(trigger):
 | F0 | Set final permissions, then `partial.sync_all()` | `Failed(DurabilityFailed)`, nothing published. Still cancellable. |
 | G | Gate claim, the first action of the `Finalize` job | Lost to cancel: the job ends and touches nothing |
 | F1 | Sidecar: `phase = finalizing`, `final_name = N`, `file_id`, `durable_offset = Z`, through rule CE with trigger `Finalize`, then CP2 to CP7 | `Failed(DurabilityFailed)`, nothing published. Sets `intent_persisted` if CP5 ran. |
-| F2 | Publish without replacing. Linux: `renameat2(RENAME_NOREPLACE)`. On `EINVAL`, or on other platforms: `Dir::hard_link`. | See "F2 results" |
+| F2 | Publish without replacing. Linux: `renameat2(RENAME_NOREPLACE)`. On `EINVAL`: `Dir::hard_link`. | See "F2 results" |
 | F3 | Sync the directory | See below |
 | F4 | Hard-link path only: remove the partial name, then sync the directory | See below |
 | F5 | Remove the sidecar, then sync the directory | See below |
@@ -1071,7 +1073,7 @@ No-replace publication stays safe if either breaks, since nothing is overwritten
 | 6 | Any | Any | A lookup failed, and row 7 does not apply | `Held(PublicationUnknown)`, change nothing |
 | 7 | Lookup failed | Same file | Published, cleanup blocked | Change nothing. Report `cleanup_pending`. A later recovery finishes it. |
 
-"Same file" compares `P` and `N` directly by device and inode, or volume and file index on Windows. When `P` is absent, it compares `N` with the sidecar's `file_id`. A null `file_id` in that case is a failed lookup, so it is row 6. A `P` that does not match a recorded `file_id` has been replaced, which is also row 6. So is a sidecar that cannot be read because of an I/O error.
+"Same file" compares `P` and `N` directly by device and inode, on Linux. When `P` is absent, it compares `N` with the sidecar's `file_id`. A null `file_id` in that case is a failed lookup, so it is row 6. A `P` that does not match a recorded `file_id` has been replaced, which is also row 6. So is a sidecar that cannot be read because of an I/O error.
 
 Rows 1 to 5 need every lookup to have succeeded. Recovery uses the probe's inputs and the same rule that a failed inspection is not evidence. A failed lookup is never read as absent, because that would select row 1 or row 2 and change files on no evidence. Rows 4 and 5 with `P` gone are `Indeterminate` in probe terms, and recovery holds them.
 
@@ -1114,8 +1116,6 @@ These partials have no transfer and no outcome, so a recovery job's results appe
 | Environment | File sync | Directory sync | No-replace publish | Claim |
 |---|---|---|---|---|
 | Linux, local journaling filesystem | `fsync`, `fdatasync` through std | `fsync` on a directory fd | `RENAME_NOREPLACE` | Designed for. Claimed only for filesystems tested at level L3. |
-| macOS | `F_FULLFSYNC` through std | `fsync` on a directory fd, [?] guarantee to be confirmed | Hard link | Process-crash only until tested |
-| Windows, NTFS | `FlushFileBuffers` through std | No documented directory flush, reported as unknown | Hard link | Process-crash only. Name durability is not claimed. |
 | NFS, SMB, FUSE, overlay | Server or driver dependent | Varies | May return `EINVAL` | No power-loss claim. Must fail explicitly. |
 | Device that ignores flushes | Cannot be detected | Cannot be detected | n/a | No guarantee is possible |
 
@@ -1408,7 +1408,7 @@ pub enum IntegrityLevel {
 #[non_exhaustive]
 pub enum Publication {
     Durable,               // directory sync succeeded
-    NameDurabilityUnknown, // the platform offers no directory sync
+    NameDurabilityUnknown, // the filesystem does not support directory sync
     NameUnconfirmed,       // directory sync failed or not finished at commit, recovery will retry
 }
 ```

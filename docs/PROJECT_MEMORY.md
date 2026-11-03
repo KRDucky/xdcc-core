@@ -2,10 +2,11 @@
 
 Current project state for contributors and agents. Keep this short and update it at each milestone.
 
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-03
 
 ## Current state
 
+- **Platform scope (owner decision, 2026-11-03):** Linux only. Windows and macOS CI and support commitments are removed. Historical M0 to M2 results remain evidence for their revisions. Conservative filename sanitization is unchanged.
 - **Phase:** 0, research and design package delivered, and revised after independent review of nine findings in three rounds, plus one clarification. **Phase 0 is not closed.** It awaits owner review, and unresolved questions remain in `COMPATIBILITY.md` §5.
 - **Implementation:** M0, M1 and M2 are merged through PR #1, PR #2 and PR #3, reviewed, and passed post-merge CI. M2 is the pure policy layer in `src/policy/`. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
 - **Gate:** authorization covers M0 to M2. Do not begin M3 or later milestones, E1, or publication without further authorization.
@@ -116,6 +117,7 @@ See `M2_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
 
 | Date | Change |
 |---|---|
+| 2026-11-03 | Owner narrowed the platform target to Linux only. Windows and macOS CI jobs and `tests/windows_device_names.rs` removed. Active plans, architecture, and security docs now target Linux. Historical reports and filename rules unchanged. |
 | 2026-11-03 | M2 merged through PR #3 at `f73fe1a`. Main CI run 41590039217 passed all seven jobs. See `M2_REPORT.md`. |
 | 2026-11-02 | M2 implemented and committed for PR review: `src/policy/`, tests, three fuzz targets, first production dependency (`unicode-normalization`). `SECURITY.md` §4, §5, §10 corrected to match. Status of M1 corrected. See `M2_REPORT.md`. |
 | 2026-11-01 | Independent review of M1: outbound builders check length before allocating, `LineFramer` is no longer `Clone`, `BotNick` refuses all ASCII controls. Regression tests and fuzz coverage added. See `M1_REPORT.md`. |

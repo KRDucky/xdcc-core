@@ -2,6 +2,8 @@
 
 **Status:** Phase 0 draft, revised after independent review, 2026-10-31. §4, §5 and the offer rate limit describe the pure `policy` layer from M2, which is merged through PR #3. `SafeName` and `ApprovedAddr` exist, but nothing uses them yet: no socket, file, or transfer code exists. Every other control here is design only, and the policy layer alone does not make a download safe. See `M2_REPORT.md`.
 
+**Platform scope:** Linux only. Windows and macOS are unsupported.
+
 ## 1. Trust model
 
 XDCC is unauthenticated peer traffic triggered by chat messages. A DCC offer tells a client to connect to an attacker-chosen address and write attacker-chosen bytes to an attacker-suggested filename. Treat every byte from IRC or DCC as hostile.
@@ -167,9 +169,9 @@ A result is accepted only if a further pass leaves it unchanged, and a separate 
 
 This corrects the earlier order, which applied NFC last. That let normalisation produce characters the filters had already passed.
 
-**Reserved names.** Microsoft's [naming documentation](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file) lists `COM¹²³` and `LPT¹²³`, which the earlier list omitted, and does not list `COM0` or `LPT0`, which it included. This list is the union. `COM0` and `LPT0` stay as portable caution. `CONIN$` and `CONOUT$` are not on that page, but Microsoft's [`RtlIsDosDeviceName_U`](https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlisdosdevicename_u) page lists them as device names, and Windows treats them as devices (below). `COM⁴` (U+2074) is not reserved.
+**Reserved names.** Microsoft's [naming documentation](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file) lists `COM¹²³` and `LPT¹²³`, which the earlier list omitted, and does not list `COM0` or `LPT0`, which it included. This list is the union. `COM0` and `LPT0` stay as portable caution. `CONIN$` and `CONOUT$` are not on that page, but Microsoft's [`RtlIsDosDeviceName_U`](https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlisdosdevicename_u) page lists them as device names, and M2 measured Windows treating them as devices (below). `COM⁴` (U+2074) is not reserved.
 
-**Measured on Windows.** Microsoft's pages do not say how case is folded, so `tests/windows_device_names.rs` asks Windows directly. On hosted Server 2022 (build 20348) and Server 2025 (build 26100), every BMP code point was tried in each position of each reserved name and appended to it, in upper and lower case, inside a directory and as a bare name. Exclusive creation was also tried for the case variants. The only non-ASCII device names were `COM` and `LPT` followed by `¹`, `²` or `³`, which are already prefixed. Variants such as `conın$` (U+0131) were ordinary files, so comparing stems ignoring ASCII case only is correct on those builds. Server 2022 reserves every name, with or without an extension, in every directory, `CONIN$` and `CONOUT$` included. Server 2025 reserves only `NUL` inside a directory, and not `NUL.txt`, but still reserves every bare name. The list stays the union, because older Windows reserves every name everywhere. Windows 10 and 11 client builds were not tested.
+**Historical Windows measurements.** M2 measured device-name handling on hosted Server 2022 and Server 2025: the only non-ASCII device names were `COM` and `LPT` followed by `¹`, `²` or `³`, and variants such as `conın$` were ordinary files, so comparing stems ignoring ASCII case only was correct on those builds. `M2_REPORT.md` holds the evidence. Windows and macOS are now unsupported, and the Windows-only probe was removed from the test suite. The reserved-name rules stay unchanged, because a downloaded file can still reach Windows consumers through shares, archives, or removable media (T20).
 
 **Accepted risk.** Invisible characters outside the list, such as Hangul fillers and variation selectors, are kept. Some removals, notably U+200C and U+200D, are ordinary in some scripts, so they can change or collide real names (Q11).
 
@@ -192,9 +194,9 @@ The download directory is opened once as a capability (`cap_std::fs::Dir`). `Dir
 | Finalize | Ordered protocol F0 to F6 in `ARCHITECTURE.md` §7.10: sync file, claim the gate, record intent, no-replace publish, sync directory, clean up. One uninterruptible job on the storage worker. |
 | Recovery | Startup recovery in `ARCHITECTURE.md` §7.9 and §7.10. Held partials need a host decision. |
 
-**Final rename.** Linux uses `renameat2` with `RENAME_NOREPLACE`, through `rustix::fs::renameat_with`. Other platforms, and Linux filesystems returning `EINVAL`, use `Dir::hard_link` followed by `remove_file`, which also fails if the target exists. A crash between those two calls leaves two names for one file, which recovery resolves. Filesystems without hard links fail with an explicit error rather than a racy check. M5 confirms this per platform.
+**Final rename.** Linux uses `renameat2` with `RENAME_NOREPLACE`, through `rustix::fs::renameat_with`. Linux filesystems returning `EINVAL` use `Dir::hard_link` followed by `remove_file`, which also fails if the target exists. A crash between those two calls leaves two names for one file, which recovery resolves. Filesystems without hard links fail with an explicit error rather than a racy check. M5 confirms this on supported Linux filesystems.
 
-**Durability limits.** Durability means "subject to the platform honouring its sync calls". `ARCHITECTURE.md` §7.10 lists what is claimed per platform. In summary, Windows has no documented directory flush, macOS and Windows are process-crash tested only, network and FUSE filesystems carry no power-loss claim, and a device that ignores flushes cannot be detected. A sync failure ends the attempt and is never retried on the same data.
+**Durability limits.** Durability means "subject to the platform honouring its sync calls". `ARCHITECTURE.md` §7.10 lists what is claimed per Linux filesystem. Network and FUSE filesystems carry no power-loss claim, and a device that ignores flushes cannot be detected. A sync failure ends the attempt and is never retried on the same data.
 
 **Conflict policy.** An existing final name produces `FinalExists`. `Rename` picks `name (1).ext` through the same no-replace path. `Overwrite` does not exist.
 
