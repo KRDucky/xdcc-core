@@ -1,8 +1,8 @@
 # XDCC Core Development Plan
 
-**Status:** Phase 0 design revised after independent review. M0 and M1 are merged,
-reviewed, and passed hosted CI. The owner authorized M2. Authorization
-does not extend to M3 or later milestones or E1.
+**Status:** Phase 0 design revised after independent review. M0, M1 and M2 are merged,
+reviewed, and passed hosted CI. Authorization does not extend to M3 or later
+milestones or E1.
 
 ## 1. Stages
 
@@ -70,9 +70,9 @@ measurements taken for that review.
 
 ### M2: Safety policies
 
-**Progress, 2026-11-02:** implemented on `codex/m2-safety-policies` and committed
-for PR review. Local evidence and unmet criteria are in `M2_REPORT.md`. Hosted CI results are
-on the PR, and M2's definition of done stays open until they pass.
+**Progress, 2026-11-03:** done. Merged through PR #3 at `f73fe1a`, after independent
+review, and post-merge CI run 41590039217 passed all seven jobs on Linux, macOS, and Windows.
+`M2_REPORT.md` holds the evidence and the remaining limitations.
 
 | | |
 |---|---|
