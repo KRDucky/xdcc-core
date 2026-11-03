@@ -7,9 +7,9 @@ Current project state for contributors and agents. Keep this short and update it
 ## Current state
 
 - **Phase:** 0, research and design package delivered, and revised after independent review of nine findings in three rounds, plus one clarification. **Phase 0 is not closed.** It awaits owner review, and unresolved questions remain in `COMPATIBILITY.md` §5.
-- **Implementation:** M0 and M1 are merged through PR #1 and PR #2, reviewed, and passed post-merge CI. M2, the pure policy layer in `src/policy/`, is implemented on `codex/m2-safety-policies`. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
+- **Implementation:** M0, M1 and M2 are merged through PR #1, PR #2 and PR #3, reviewed, and passed post-merge CI. M2 is the pure policy layer in `src/policy/`. No network, storage, runtime, or transfer logic exists. `docs/research/` remains research only.
 - **Gate:** authorization covers M0 to M2. Do not begin M3 or later milestones, E1, or publication without further authorization.
-- **Repository:** M2 is committed on `codex/m2-safety-policies` for PR review. Its definition of done stays open until hosted CI passes on all three operating systems. See `M2_REPORT.md`. `dev/irc-lab/` is the owner's Docker lab: it is not part of M2, so stage M2 files selectively.
+- **Repository:** M2 merged through PR #3 at merge commit `f73fe1ad9de78ff5756fb3aaaae0d4fd62b008e7`. Main CI run 41590039217 passed all seven jobs. See `M2_REPORT.md`. `dev/irc-lab/` is the owner's Docker lab: it is not part of any milestone, so stage files selectively.
 - **Local machine:** the owner installed rustup (Rust 1.88.0, stable, nightly), cargo-deny, cargo-fuzz, cargo-audit, and cargo-mutants under `~/.cargo`. The `/tmp` tool paths in earlier reports were temporary.
 - **Security contact:** D8 resolved by owner on 2026-10-31: `sec.krd.hub@proton.me`, documented in root `SECURITY.md`.
 - **Missing inputs:** the brief refers to "Project Instructions" and "Project Context". Neither was in the repository or supplied. If they exist, reconcile this package with them.
@@ -109,13 +109,14 @@ Both crates have `publish = false`. Other decisions below remain proposals.
 
 ## Next step
 
-PR review of M2, with hosted CI on all three operating systems. M3, E1, and
-publication remain unauthorized. See `M2_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
+Awaiting owner direction. M3, E1, and publication remain unauthorized.
+See `M2_REPORT.md` and `DEVELOPMENT_PLAN.md` §2.
 
 ## Change log
 
 | Date | Change |
 |---|---|
+| 2026-11-03 | M2 merged through PR #3 at `f73fe1a`. Main CI run 41590039217 passed all seven jobs. See `M2_REPORT.md`. |
 | 2026-11-02 | M2 implemented and committed for PR review: `src/policy/`, tests, three fuzz targets, first production dependency (`unicode-normalization`). `SECURITY.md` §4, §5, §10 corrected to match. Status of M1 corrected. See `M2_REPORT.md`. |
 | 2026-11-01 | Independent review of M1: outbound builders check length before allocating, `LineFramer` is no longer `Clone`, `BotNick` refuses all ASCII controls. Regression tests and fuzz coverage added. See `M1_REPORT.md`. |
 | 2026-10-31 | Owner authorized M1. Codecs, vectors, property tests, allocation check, and fuzz targets added on `codex/m1-protocol-codecs`. CASEMAPPING confirmed from S2. API sketch and `PROTOCOL_SPEC.md` §3, §4, §7.5 refined. |

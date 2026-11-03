@@ -3,10 +3,15 @@
 **Date:** 2026-11-02. **Authorization:** owner authorized M2. M3 and later milestones,
 E1, and publication are not authorized.
 
-**State:** implemented on `codex/m2-safety-policies`, from `main` at `dcc4a32`, and
-committed for PR review. **M2 is not complete** until hosted CI passes on Linux, macOS,
-and Windows. Local checks pass on Linux. The PR records the commit and CI results, since
-this file cannot name its own commit.
+**Later status (2026-11-03):** M2 merged through PR #3 at merge commit
+`f73fe1ad9de78ff5756fb3aaaae0d4fd62b008e7`. Main CI run 41590039217 on that commit passed all seven jobs:
+Rust 1.88 on `ubuntu-latest`, `macos-latest`, `windows-latest` and `windows-2022`, dependency
+policy, fuzz smoke, and research specification checks. The rest of this report is the record
+made for that review, and its measurements are unchanged.
+
+**State at the time of this report:** implemented on `codex/m2-safety-policies`, from `main`
+at `dcc4a32`, and committed for PR review. Local checks passed on Linux. The PR recorded the
+commit and pre-merge CI results, since this file could not name its own commit.
 
 This is the policy layer alone. It makes decisions that nothing calls yet, and **it does
 not make a download safe**. No socket, file, DNS, runtime, or transfer code exists.
@@ -239,7 +244,7 @@ exists. `policy_name` is slow, so it saw far fewer inputs than the others.
 | Fuzz target | **Met.** Three targets, at least 60 s each. |
 | IPv4-mapped and NAT64 bypass cases | **Met** |
 | `SECURITY.md` §4 and §5 match the code | **Met**, by review |
-| CI green on Linux, macOS, Windows | **Recorded on the PR**, per commit. The report cannot name its own commit. |
+| CI green on Linux, macOS, Windows | **Met.** Recorded on the PR per commit, and on `main` by run 41590039217 after the merge. |
 | A reviewable PR, about 500 lines of non-test code | **Partly met.** One PR, as the owner directed, but the code is about twice that. |
 
 ## Limitations and open questions
