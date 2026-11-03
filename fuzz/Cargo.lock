@@ -88,8 +88,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c0e04424e733e69714ca1bbb9204c1a57f09f5493439520f9f68c132ad25eec"
 
 [[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75cd3fb03d5288b3ba9a1ee103ac7e9cbb59f0b03d64f8ddfcc04dd42758a85d"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "xdcc-core"
 version = "0.1.0-dev"
+dependencies = [
+ "unicode-normalization",
+]
 
 [[package]]
 name = "xdcc-core-fuzz"
@@ -97,5 +115,6 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "stats_alloc",
+ "unicode-normalization",
  "xdcc-core",
 ]

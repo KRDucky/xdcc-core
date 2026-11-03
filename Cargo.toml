@@ -30,6 +30,9 @@ readme = "README.md"
 # Publishing is a separate release decision; M0 reserves no registry name.
 publish = false
 
+[dependencies]
+unicode-normalization = { version = "0.1.26", default-features = false }
+
 [dev-dependencies]
 proptest = { version = "1.12", default-features = false, features = ["std"] }
 stats_alloc = "0.1.10"

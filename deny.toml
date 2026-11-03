@@ -10,7 +10,8 @@ confidence-threshold = 0.93
 # Dev-dependencies are skipped unless this is set. They are not shipped, but they
 # still run on developer and CI machines, so they get the same review.
 include-dev = true
-allow = ["Apache-2.0", "GPL-3.0-only", "MIT"]
+# Unicode-3.0 covers the normalisation tables in unicode-normalization.
+allow = ["Apache-2.0", "GPL-3.0-only", "MIT", "Unicode-3.0"]
 
 [bans]
 multiple-versions = "warn"

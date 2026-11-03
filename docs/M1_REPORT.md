@@ -3,7 +3,11 @@
 **Date:** 2026-11-01. **Authorization:** owner authorized M1. M2 and later milestones,
 E1, and publication are not authorized.
 
-**State:** implemented on `codex/m1-protocol-codecs`, uncommitted, for independent
+**Later status (2026-11-02):** M1 merged through PR #2 at `dcc4a32`, and its
+post-merge CI passed. The rest of this report is the record made for that review, and
+its measurements are unchanged. M2 reruns of the M1 fuzz targets are in `M2_REPORT.md`.
+
+**State at the time of this report:** implemented on `codex/m1-protocol-codecs`, uncommitted, for independent
 review. **M1 is not complete.** Local checks pass, and the fuzz and allocation criteria
 are met on Linux, but hosted CI on Linux, macOS, and Windows has not run on this work.
 
